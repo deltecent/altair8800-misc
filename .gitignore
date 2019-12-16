@@ -1,3 +1,10 @@
-*.lst
-*.oct
+.DS_Store
+*.icloud
 *.rom
+*.lst
+*.hex
+*.ROM
+*.LST
+*.HEX
+*.oct
+~*
