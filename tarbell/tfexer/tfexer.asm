@@ -1279,8 +1279,9 @@ jmpTest	ldax	d		;a=opcode at jump destination
 	sta	mExit		;   allow CP/M exit message to display
 	sta	cpmFlag		;set CP/M flag to non-zero value
 
-	lxi	h,mCpmFnd	;running under CP/M
-	jmp	dispMsg		;display and return
+;	lxi	h,mCpmFnd	;running under CP/M
+;	jmp	dispMsg		;display and return
+	ret
 
 ;------------------------------------------------------------------------------
 ; exitCpm - if running under CP/M, prompt user to insert the CP/M
@@ -1328,7 +1329,7 @@ mHelp	db	cr,lf,'Valid commands are:',cr,lf
 	db	'  G            Display FD1771 registers',cr,lf
 	db	'  R x          Read sector x',cr,lf
 	db	'  S x [y]      Step to track x and optionally toggle to y',cr,lf
-	db	'  W x hh       Write sector x with hex hh',cr,lf,0
+	db	'  W x hh       Write sector x with hex hh',cr,lf
 mExit	db	'  X            Exit to CP/M',cr,lf,0
 
 mHelp2	db	lf,'Immediate commands:',cr,lf
