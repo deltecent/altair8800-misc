@@ -1,6 +1,6 @@
 ;*********************************************************************
 ;*
-;*	MicroPro WORDMASTER release 5.55A
+;*	MicroPro WORDMASTER release 1.07A
 ;*	Copyright (c) 1978 MicroPro International Corporation
 ;*
 ;*	Reconstructed from memory image on January 21, 2020
@@ -8,10 +8,32 @@
 ;*
 ;*********************************************************************
 
+;
+; WORDMASTER PATCH PROCEDURE
+;
+; Insert your CP/M diskette in the drive, boot up the and enter:
+;
+;	A>DDT
+;
+; Remove the CP/M diskette, insert the installation diskette and enter:
+;
+;	-IWM.COM
+;	-R
+;	-Ixxx.HEX	where xxx=three character filename corresponding
+;			to your terminal
+;	-R
+;
+; Remove the installation diskette, insert the CP/M diskette and enter:
+;
+;	-G0
+;	A>SAVE 38 WM.COM
+;
+
 MEMORY	equ	29b8h
 
 WBOOT	equ	0000h
 BIOSJVT	equ	0001h		;BIOS JMP Vector Table
+IOBYTE	equ	0003h
 BDOS	equ	0005h
 FBASE	equ	0006h
 RESTART	equ	0038h
@@ -20,70 +42,117 @@ FCB2	equ	06ch		;File Control Block
 FCBFN	equ	1
 FCBEXT	equ	9
 DBUFF	equ	0080h
+VIOID	equ	0fffdh		;Pointer to IMSAI VIO ID
+DPBASE	equ	0030h		;Disk Parameter Table = BIOSJVT+DPBASE
 
-CONIN	equ	1
-CONOUT	equ	2
-RDRIN	equ	3
-LISTOUT	equ	5
-DIRIO	equ	6
-PRINTS	equ	9
-OPENF	equ	15
-CLOSEF	equ	16
-DELEF	equ	19
-READS	equ	20
-MAKEF	equ	22
-CURDSK	equ	25
+; CP/M BIOS JUMP VECTORS
+CONST	equ	1		;Check Console KB Status
+CONIN	equ	2		;Read Console Character
+CONOUT	equ	3		;Write Console Character
 
+NUL	equ	000h		;Do Next Char 4 Times (^@)
+CTRLA	equ	001h		;Cursor Left Word
+CTRLB	equ	002h		;Cursor Left/Right Line
+CTRLC	equ	003h		;Page Up
+CTRLD	equ	004h		;Cursor Right Character
+CTRLE	equ	005h		;Cursor Up Line
+CTRLF	equ	006h		;Cursor Right Word
+BELL	equ	007h		
+CTRLG	equ	BELL		;Delete Character Right
 BS	equ	008h
 TAB	equ	009h
 LF	equ	00ah
+CTRLK	equ	00bh		;Delete Line Right
 CR	equ	00dh
+CTRLN	equ	00eh		;Insert Carriage Return
+CTRLO	equ	00fh		;Insert Toggle On/Off
+CTRLP	equ	010h		;Pur Next Character in File
+CTRLQ	equ	011h		;Cursor Right TAB Stop
+CTRLR	equ	012h		;Page Down
+CTRLS	equ	013h		;Cursor Left Character
+CTRLT	equ	014h		;Delete Word Right
+CTRLU	equ	015h		;Delete Line Left
+CTRLV	equ	016h		;VIO Control
+CTRLW	equ	017h		;Scroll Down
+CTRLX	equ	018h		;Cursor Down Line
+CTRLY	equ	019h		;Delete Entire Line
+CTRLZ	equ	01ah		;Scroll Up
 EOF	equ	01ah
 ESC	equ	01bh
+CTRL6	equ	01eh		;Cursor Top/Bot of Screen (^^)
 DEL	equ	07fh
+
+IOBYTE1	equ	02749h		;SOMETHING TO DO WITH IOBYTE?
+STKTOP	equ	02760h		;TOP OF STACK
 
 	org	00100h
 
 	jmp ENTRY		;0100	c3 69 02 	. i . 
-	jmp BREAKBP		;0103	c3 60 02 	. ` . 
+	jmp BREAKPT		;0103	c3 60 02 	. ` . 
 COPYR:
 	db ' COPYRIGHT (C) 1978  MICROPRO INTERNATIONAL CORPORATION      '
 CRLF:
 	db CR,LF,0
 BANNER:
 	db CR,'MicroPro WORDMASTER release 1.07A serial # WM6344V5   ',CR,LF,0
-CLRSCRN:
-	db 0,0,0,0,0,0		;PATCH SPACE
-	mvi	a,ESC		;0186	3e 1b 	> . 
-	call	OUTCHAR		;0188	cd ef 01 	. . . 
-	mvi	a,'*'		;018b	3e 2a 	> * 
-	call	OUTCHAR		;018d	cd ef 01 	. . . 
-	mvi	a,EOF		;0190	3e 1a 	> . 
-	call	OUTCHAR		;0192	cd ef 01 	. . . 
-	ret
+
+;**************************************************
+;* 						  *
+;*  USER-MODIFYABLE ROUTINES AND CONSTANTS FOR    *
+;*  HARDWARE-DEPENDENT TERMINAL CHARACTERISTICS   *
+;*  AND FUNCTIONS USED BY WORD-MASTER.            *
+;*                       RELEASE 1.07   2/21/80   *
+;**************************************************
+
+; *** SUBROUTINE TO CLEAR SCREEN AND HOME CURSOR ***
+
+; THIS VERSION WORKS FOR TWO TYPES OF CRT TERMINALS,
+; ADM3-A AND SOROC-IQ/120, AND ONE MEMORY-MAPPED VIDEO
+; BOARD, THE IMSAI VIO.
+
+CLRSCRN: NOP! NOP! NOP		;SPACE FOR LONGER PATCH /
+	 NOP! NOP! NOP		; MAKE ADDRS MATCH OLD VERSION
+    ;FIRST, SEND ESCAPE, *. THIS WORKS FOR SOROC
+    ;AND WILL BE ERASED BY SUBSEQUENT ^Z FOR OTHERS.
+	MVI A,1BH		;(1) GET ESCAPE CHARACTER
+	CALL OUTCHR		;SEND IT TO TERMINAL
+	MVI A,'*'		;(2) GET ASTERISK
+	CALL OUTCHR		;SEND IT TO TERMINAL
+    ;NOW SEND CTRL-Z. THIS WORKS FOR ADM-3A, IMSAI VIO.
+	MVI A,1AH		;(3) GET CONTROL-Z CHARACTER
+	CALL OUTCHR		;SEND IT AND RETURN TO CALLER
+	RET
+   ;TO CHANGE ABOVE ROUTINE TO SEND DIFFERENT
+   ;CHARACTERS, PATCH IN DESIRED CHARACTER IN
+   ;INSTRUCTION AT (1), (2), OR (3) ABOVE.
+   ;TO SEND LESS THAN 3 CHARACTERS, PATCH IN A
+   ;"RET" AFTER LAST DESIRED "CALL OUTCHR".
 
 ;
 ; *** SUBROUTINE TO POSITION CURSOR AT      ***
 ; ***     LINE L (0=TOP), COLUMN H (0=LEFT) ***
 ;
-;PTCO SOL VERSION:
-; SENDS ESC, 02H, Y(L), ESC, 01H, X(H)
+;ADM-3A / IMSAI VIO / SOROC VERSION:
+; SENDS ESCAPE, =, Y+20H, X+20H
 ;
-TCURSOR:
-	mvi	a,ESC		;0196	3e 1b 	> . 
-	call	OUTCHAR		;0198	cd ef 01 	. . . 
-	mvi	a,'='		;019b	3e 3d 	> = 
-	call	OUTCHAR		;019d	cd ef 01 	. . . 
-	mvi	a,' '		;01a0	3e 20 	>   
-	add	l			;01a2	85 	. 
-	call	OUTCHAR		;01a3	cd ef 01 	. . . 
-	mvi	a,' '		;01a6	3e 20 	>   
-	add	h			;01a8	84 	. 
-	call	OUTCHAR		;01a9	cd ef 01 	. . . 
-	ret			;01ac	c9 	. 
+TCURSOR: MVI A,1BH! CALL OUTCHR	;SEND ESCAPE
+	MVI A,'='! CALL OUTCHR		;SEND EQUALS
+	MVI A,20H			;ADD 20 HEX...
+	ADD L				;.. TO LINE #...
+	CALL OUTCHR			;.. AND SEND IT.
+	MVI A,20H			;ADD 20 HEX...
+	ADD H				;..TO COLUMN NUMBER
+	CALL OUTCHR			;..AND GO SEND IT.
+	RET
 
-	db	0,0,0,0,0
-	db	0,0,0,0,0
+	DB 0,0,0,0,0	;ADDITIONAL PATCH SPACE
+	DB 0,0,0,0,0	;...
+
+
+	;NOTE: BACKSPACE ROUTINE THAT WAS IN
+	;PRIOR RELEASES IS NO LONGER NEEDED.
+
+; **** MODIFYABLE CONSTANTS *****
 
 ;PBEGMEM POINTS TO BEGINNING OF MEMORY TO USE
 ;FOR EDIT BUFFER AND SCRATCHPAD. IF SPACE IS NEEDED
@@ -141,11 +210,11 @@ DELERE:	DB 5	;DELAY AFTER ERASE TO EOL: 5+ MSEC.
 
 	jmp DELAY		;01ec	c3 4f 02 	. O . 
 
-OUTCHAR:
-	jmp l2592h		;01ef	c3 92 25 	. . % 
-s01f2h:
-	lxi h,00000h		;01f2	21 00 00 	. . . 
-	shld CURXPOS		;01f5	22 83 26 	" . & 
+OUTCHR:
+	jmp OUTCH1		;01ef	c3 92 25 	. . % 
+CURHOME:
+	lxi h,0	
+	shld CURXPOS		;CLEAR X,Y POSITION
 	push b			;01f8	c5 	. 
 	push d			;01f9	d5 	. 
 	push h			;01fa	e5 	. 
@@ -156,11 +225,12 @@ s01f2h:
 	pop d			;0205	d1 	. 
 	pop b			;0206	c1 	. 
 	ret			;0207	c9 	. 
-s0208h:
-	lhld l268fh		;0208	2a 8f 26 	* . & 
-l020bh:
+;
+MOVCUR:
+	lhld NEWXPOS		;0208	2a 8f 26 	* . & 
+MOVCUR1:
 	xra a			;020b	af 	. 
-	sta l26a1h		;020c	32 a1 26 	2 . & 
+	sta LASTOUT		;020c	32 a1 26 	2 . & 
 	push d			;020f	d5 	. 
 	xchg			;0210	eb 	. 
 	lhld CURXPOS		;0211	2a 83 26 	* . & 
@@ -179,21 +249,21 @@ l020bh:
 	pop d			;022a	d1 	. 
 	pop b			;022b	c1 	. 
 	jmp l234eh		;022c	c3 4e 23 	. N # 
-s022fh:
+CURLEFT:
 	push h			;022f	e5 	. 
 	lhld CURXPOS		;0230	2a 83 26 	* . & 
 	dcr h			;0233	25 	% 
-	call l020bh		;0234	cd 0b 02 	. . . 
+	call MOVCUR1		;0234	cd 0b 02 	. . . 
 	pop h			;0237	e1 	. 
 	ret			;0238	c9 	. 
 
 ERAEOL:
 	push	psw			;0239	f5 	. 
 	lda	EREOL		;023a	3a bb 01 	: . . 
-	call	s259bh		;023d	cd 9b 25 	. . % 
+	call	OUTCH2		;023d	cd 9b 25 	. . % 
 	lda	EREOL+1		;0240	3a bc 01 	: . . 
 	ora	a			;0243	b7 	. 
-	cnz	s259bh		;0244	c4 9b 25 	. . % 
+	cnz	OUTCH2		;0244	c4 9b 25 	. . % 
 	lda	DELERE		;0247	3a c3 01 	: . . 
 	call	DELAY		;024a	cd 4f 02 	. O . 
 	pop	psw			;024d	f1 	. 
@@ -201,6 +271,7 @@ ERAEOL:
 
 DELAY:
 	inr a			;024f	3c 	< 
+
 DELAY$0:
 	dcr a			;0250	3d 	= 
 	rz			;0251	c8 	. 
@@ -215,14 +286,14 @@ DELAY$1:
 	jmp DELAY$0		;025d	c3 50 02 	. P . 
 
 
-BREAKBP:
-	lxi sp,029b6h		;0260	31 b6 29 	1 . ) 
+BREAKPT:
+	lxi sp,MEMORY-2		;0260	31 b6 29 	1 . ) 
 	mvi a,0ffh		;0263	3e ff 	> . 
 	call INIT		;0265	cd 74 02 	. t . 
 	rst 7			;0268	ff 	. 
 
 ENTRY:
-	lxi sp,029b6h		;0269	31 b6 29 	1 . ) 
+	lxi sp,MEMORY-2		;0269	31 b6 29 	1 . ) 
 	xra a			;026c	af 	. 
 	call INIT		;026d	cd 74 02 	. t . 
 	call s1fd9h		;0270	cd d9 1f 	. . . 
@@ -230,18 +301,18 @@ ENTRY:
 
 INIT:
 	sta 0274ch		;0274	32 4c 27 	2 L ' 
-	lxi h,00000h		;0277	21 00 00 	. . . 
+	lxi h,0			;0277	21 00 00 	. . . 
 	dad sp			;027a	39 	9 
-	shld 02760h		;027b	22 60 27 	" ` ' 
+	shld STKTOP		;027b	22 60 27 	" ` ' 
 	lxi d,BANNER		;027e	11 46 01 	. F . 
 	call PRINT		;0281	cd 0e 23 	. . # 
 	lxi d,COPYR		;0284	11 06 01 	. . . 
 	call PRINT		;0287	cd 0e 23 	. . # 
 	lhld BIOSJVT		;HL = BIOS Vector Table (WBOOTE)
-	lxi d,00030h		;028d	11 30 00 	. 0 . 
-	dad d			;0290	19 	. 
-	mov a,m			;0291	7e 	~ 
-	inx h			;0292	23 	# 
+	lxi d,DPBASE		;028d	11 30 00 	. 0 . 
+	dad d			;DE = DPBASE(XLT LSB)
+	mov a,m			;A = XLT LSB
+	inx h			;DE = DPBASE(XLT MSB)
 	ora a			;0293	b7 	. 
 	jnz l029fh		;0294	c2 9f 02 	. . . 
 	mov a,m			;0297	7e 	~ 
@@ -265,7 +336,7 @@ l02afh:
 	lda NOVIO		;02b6	3a bd 01 	: . . 
 	ora a			;02b9	b7 	. 
 	jnz l02c7h		;02ba	c2 c7 02 	. . . 
-	lxi h,0fffdh		;02bd	21 fd ff 	. . . 
+	lxi h,VIOID		;02bd	21 fd ff 	. . . 
 	mov b,m			;02c0	46 	F 
 	mvi a,0a9h		;02c1	3e a9 	> . 
 	mov m,a			;02c3	77 	w 
@@ -273,19 +344,19 @@ l02afh:
 	mov m,b			;02c5	70 	p 
 	inr a			;02c6	3c 	< 
 l02c7h:
-	lxi h,02749h		;02c7	21 49 27 	. I ' 
+	lxi h,IOBYTE1		;02c7	21 49 27 	. I ' 
 	mov m,a			;02ca	77 	w 
-	lda 00003h		;02cb	3a 03 00 	: . . 
+	lda IOBYTE		;02cb	3a 03 00 	: . . 
 	ani 003h		;02ce	e6 03 	. . 
 	cpi 002h		;02d0	fe 02 	. . 
 	jnc l02d7h		;02d2	d2 d7 02 	. . . 
 	mvi m,0ffh		;02d5	36 ff 	6 . 
 l02d7h:
 	call s1901h		;02d7	cd 01 19 	. . . 
-	lhld PBEGMEM		;02da	2a b7 01 	* . . 
-	xchg			;02dd	eb 	. 
-	lxi h,02731h		;02de	21 31 27 	. 1 ' 
-	mvi a,004h		;02e1	3e 04 	> . 
+	lhld PBEGMEM		;HL = PBEGMEM
+	xchg			;DE = PBEGMEM
+	lxi h,02731h		;HL = 02731h
+	mvi a,004h		;A = 4
 l02e3h:
 	mov m,e			;02e3	73 	s 
 	inx h			;02e4	23 	# 
@@ -451,7 +522,7 @@ l045ah:
 l0460h:
 	call s2028h		;0460	cd 28 20 	. (   
 l0463h:
-	lhld 02760h		;0463	2a 60 27 	* ` ' 
+	lhld STKTOP		;0463	2a 60 27 	* ` ' 
 	sphl			;0466	f9 	. 
 	ret			;0467	c9 	. 
 s0468h:
@@ -478,14 +549,14 @@ s0497h:
 	db CR,LF,'ABORT (Y/N)? ',0
 l04aah:
 	call s2230h		;04aa	cd 30 22 	. 0 " 
-	call s064ch		;04ad	cd 4c 06 	. L . 
+	call UC		;04ad	cd 4c 06 	. L . 
 	cpi 'Y'			;04b0	fe 59 	. Y 
 	ret			;04b2	c9 	. 
 l04b3h:
 	call s0497h		;04b3	cd 97 04 	. . . 
 	jz l0463h		;04b6	ca 63 04 	. c . 
 l04b9h:
-	lhld 02760h		;04b9	2a 60 27 	* ` ' 
+	lhld STKTOP		;04b9	2a 60 27 	* ` ' 
 	sphl			;04bc	f9 	. 
 	lxi h,l04b9h		;04bd	21 b9 04 	. . . 
 	push h			;04c0	e5 	. 
@@ -504,7 +575,7 @@ l04cbh:
 	call s0668h		;04db	cd 68 06 	. h . 
 l04deh:
 	mvi a,'*'		;04de	3e 2a 	> * 
-	call s24fch		;04e0	cd fc 24 	. . $ 
+	call OUTCH5		;04e0	cd fc 24 	. . $ 
 	call s2230h		;04e3	cd 30 22 	. 0 " 
 	shld 0274dh		;04e6	22 4d 27 	" M ' 
 	mov a,m			;04e9	7e 	~ 
@@ -522,7 +593,7 @@ l04f6h:
 	ora a			;04fd	b7 	. 
 	jnz l0519h		;04fe	c2 19 05 	. . . 
 	mov a,b			;0501	78 	x 
-	call s064ch		;0502	cd 4c 06 	. L . 
+	call UC		;0502	cd 4c 06 	. L . 
 	cpi 'H'		;0505	fe 48 	. H 
 	jz l0446h		;0507	ca 46 04 	. F . 
 	cpi 'Q'		;050a	fe 51 	. Q 
@@ -543,7 +614,7 @@ l0527h:
 	call PRINT		;052b	cd 0e 23 	. . # 
 	call s24e3h		;052e	cd e3 24 	. . $ 
 	jmp l04b9h		;0531	c3 b9 04 	. . . 
-s0534h:
+ERRMSG:
 	call s1209h		;0534	cd 09 12 	. . . 
 	call s24e3h		;0537	cd e3 24 	. . $ 
 	pop d			;053a	d1 	. 
@@ -572,9 +643,9 @@ l054eh:
 	jz l0627h		;0568	ca 27 06 	. ' . 
 	cpi ';'		;056b	fe 3b 	. ; 
 	jz l067ch		;056d	ca 7c 06 	. | . 
-	cpi 011h		;0570	fe 11 	. . 
+	cpi CTRLQ		;CURSOR RIGHT TAB STOP
 	jz l1954h		;0572	ca 54 19 	. T . 
-	cpi 004h		;0575	fe 04 	. . 
+	cpi CTRLD		;CURSOR RIGHT CHARACTER
 	jz l062ch		;0577	ca 2c 06 	. , . 
 	cpi 'V'		;057a	fe 56 	. V 
 	jz s10f7h		;057c	ca f7 10 	. . . 
@@ -671,7 +742,7 @@ s0644h:
 	ret			;0648	c9 	. 
 s0649h:
 	call s0644h		;0649	cd 44 06 	. D . 
-s064ch:
+UC:
 	cpi 'a'		;064c	fe 61 	. a 
 	rc			;064e	d8 	. 
 	cpi '{'		;064f	fe 7b 	. { 
@@ -784,7 +855,7 @@ s0719h:
 	lxi h,0d6c4h		;0719	21 c4 d6 	. . . 
 	dad sp			;071c	39 	9 
 	rc			;071d	d8 	. 
-	call s0534h		;071e	cd 34 05 	. 4 . 
+	call ERRMSG		;071e	cd 34 05 	. 4 . 
 	db 'STACK OVFL',0
 l072ch:
 	call s0da0h		;072c	cd a0 0d 	. . . 
@@ -860,8 +931,8 @@ l079ah:
 	call l07bbh		;07a8	cd bb 07 	. . . 
 	mvi a,'}'		;07ab	3e 7d 	> } 
 s07adh:
-	call s24fch		;07ad	cd fc 24 	. . $ 
-	jmp s24fch		;07b0	c3 fc 24 	. . $ 
+	call OUTCH5		;07ad	cd fc 24 	. . $ 
+	jmp OUTCH5		;07b0	c3 fc 24 	. . $ 
 l07b3h:
 	lhld 0273dh		;07b3	2a 3d 27 	* = ' 
 	mvi a,'{'		;07b6	3e 7b 	> { 
@@ -872,7 +943,7 @@ l07beh:
 	call CMPDEHL		;07be	cd 9f 1f 	. . . 
 	rz			;07c1	c8 	. 
 	ldax d			;07c2	1a 	. 
-	call s24fch		;07c3	cd fc 24 	. . $ 
+	call OUTCH5		;07c3	cd fc 24 	. . $ 
 	inx d			;07c6	13 	. 
 	call s23d6h		;07c7	cd d6 23 	. . # 
 	jmp l07beh		;07ca	c3 be 07 	. . . 
@@ -1069,7 +1140,7 @@ l0935h:
 	stax d			;0937	12 	. 
 	jmp l0926h		;0938	c3 26 09 	. & . 
 l093bh:
-	cpi 019h		;093b	fe 19 	. . 
+	cpi CTRLY		;093b	fe 19 	. . 
 	jnz l0945h		;093d	c2 45 09 	. E . 
 	mvi a,ESC		;0940	3e 1b 	> . 
 	jmp l0935h		;0942	c3 35 09 	. 5 . 
@@ -1094,7 +1165,7 @@ s095bh:
 l095dh:
 	stax d			;095d	12 	. 
 s095eh:
-	cpi EOF		;095e	fe 1a 	. . 
+	cpi CTRLZ		;095e	fe 1a 	. . 
 	rz			;0960	c8 	. 
 	cpi ESC		;0961	fe 1b 	. . 
 	rz			;0963	c8 	. 
@@ -1165,7 +1236,7 @@ l09ach:
 	call s095eh		;09d5	cd 5e 09 	. ^ . 
 	jz POPHDB		;09d8	ca cc 1f 	. . . 
 l09dbh:
-	call s0534h		;09db	cd 34 05 	. 4 . 
+	call ERRMSG		;09db	cd 34 05 	. 4 . 
 	db 'INVALID FILE NAME',0
 l09f0h:
 	db 'LIB'
@@ -1197,7 +1268,7 @@ s0a12h:
 	call s0a1dh		;0a13	cd 1d 0a 	. . . 
 	rz			;0a16	c8 	. 
 	inx h			;0a17	23 	# 
-	call s064ch		;0a18	cd 4c 06 	. L . 
+	call UC		;0a18	cd 4c 06 	. L . 
 	ora a			;0a1b	b7 	. 
 	ret			;0a1c	c9 	. 
 s0a1dh:
@@ -1285,7 +1356,7 @@ s0aa1h:
 	lxi d,00d80h		;0ab8	11 80 0d 	. . . 
 	call CMPDEHL		;0abb	cd 9f 1f 	. . . 
 	jc POPHDB		;0abe	da cc 1f 	. . . 
-	call s0534h		;0ac1	cd 34 05 	. 4 . 
+	call ERRMSG		;0ac1	cd 34 05 	. 4 . 
 	db 'QBUF FULL',0
 l0aceh:
 	call s0806h		;0ace	cd 06 08 	. . . 
@@ -1298,7 +1369,7 @@ l0ad4h:
 	jc l0ad4h		;0adc	da d4 0a 	. . . 
 	call s24f0h		;0adf	cd f0 24 	. . $ 
 	call s23d6h		;0ae2	cd d6 23 	. . # 
-	cpi EOF		;0ae5	fe 1a 	. . 
+	cpi CTRLZ		;0ae5	fe 1a 	. . 
 	rz			;0ae7	c8 	. 
 	cpi ESC		;0ae8	fe 1b 	. . 
 	rz			;0aea	c8 	. 
@@ -1310,24 +1381,24 @@ l0ad4h:
 	jnz l0b06h		;0af6	c2 06 0b 	. . . 
 l0af9h:
 	call s0c14h		;0af9	cd 14 0c 	. . . 
-	call s24fch		;0afc	cd fc 24 	. . $ 
+	call OUTCH5		;0afc	cd fc 24 	. . $ 
 l0affh:
 	shld 0273dh		;0aff	22 3d 27 	" = ' 
 	call s1d9bh		;0b02	cd 9b 1d 	. . . 
 	ret			;0b05	c9 	. 
 l0b06h:
-	cpi ' '		;0b06	fe 20 	.   
-	jnc s0bach		;0b08	d2 ac 0b 	. . . 
-	cpi 019h		;0b0b	fe 19 	. . 
+	cpi ' '			;CONTROL CHARACTER?
+	jnc s0bach		;JUMP IF NOT
+	cpi CTRLY		;DELETE ENTIRE LINE
 	jnz l0b12h		;0b0d	c2 12 0b 	. . . 
 l0b10h:
 	mvi a,ESC		;0b10	3e 1b 	> . 
 l0b12h:
-	cpi 005h		;0b12	fe 05 	. . 
+	cpi CTRLE		;CURSOR UP LINE
 	jz s24e3h		;0b14	ca e3 24 	. . $ 
-	cpi 015h		;0b17	fe 15 	. . 
+	cpi CTRLU		;DELETE LINE LEFT
 	jz l0b21h		;0b19	ca 21 0b 	. . . 
-	cpi 018h		;0b1c	fe 18 	. . 
+	cpi CTRLX		;CURSOR LINE DOWN
 	jnz l0b30h		;0b1e	c2 30 0b 	. 0 . 
 l0b21h:
 	call s24e3h		;0b21	cd e3 24 	. . $ 
@@ -1352,7 +1423,7 @@ s0b43h:
 	call s0bb9h		;0b43	cd b9 0b 	. . . 
 	jmp l0affh		;0b46	c3 ff 0a 	. . . 
 l0b49h:
-	cpi 01ch		;0b49	fe 1c 	. . 
+	cpi 01ch		;DELETE WORD LEFT (^\)
 	jnz l0b7dh		;0b4b	c2 7d 0b 	. } . 
 l0b4eh:
 	lda CURYPOS		;0b4e	3a 84 26 	: . & 
@@ -1380,7 +1451,7 @@ l0b6bh:
 	call s0b43h		;0b77	cd 43 0b 	. C . 
 	jmp l0b6bh		;0b7a	c3 6b 0b 	. k . 
 l0b7dh:
-	cpi 012h		;0b7d	fe 12 	. . 
+	cpi CTRLR		;0b7d	fe 12 	. . 
 	jnz l0b9dh		;0b7f	c2 9d 0b 	. . . 
 	call s24e3h		;0b82	cd e3 24 	. . $ 
 s0b85h:
@@ -1404,7 +1475,7 @@ s0ba2h:
 	mvi a,CR		;0ba2	3e 0d 	> . 
 	call s0bach		;0ba4	cd ac 0b 	. . . 
 	mvi a,LF		;0ba7	3e 0a 	> . 
-	call s24fch		;0ba9	cd fc 24 	. . $ 
+	call OUTCH5		;0ba9	cd fc 24 	. . $ 
 s0bach:
 	push psw			;0bac	f5 	. 
 	call s0c55h		;0bad	cd 55 0c 	. U . 
@@ -1439,10 +1510,10 @@ l0bd6h:
 	cpi ' '		;0bdb	fe 20 	.   
 	cc s0be0h		;0bdd	dc e0 0b 	. . . 
 s0be0h:
-	call s022fh		;0be0	cd 2f 02 	. / . 
+	call CURLEFT		;0be0	cd 2f 02 	. / . 
 	mvi a,' '		;0be3	3e 20 	>   
-	call s2567h		;0be5	cd 67 25 	. g % 
-	jmp s022fh		;0be8	c3 2f 02 	. / . 
+	call OUTCH4		;0be5	cd 67 25 	. g % 
+	jmp CURLEFT		;0be8	c3 2f 02 	. / . 
 s0bebh:
 	xchg			;0beb	eb 	. 
 	lhld 0273bh		;0bec	2a 3b 27 	* ; ' 
@@ -1545,7 +1616,7 @@ l0c6bh:
 	jnz l1e4ch		;0c78	c2 4c 1e 	. L . 
 	call s1a9eh		;0c7b	cd 9e 1a 	. . . 
 	jnc l0c6bh		;0c7e	d2 6b 0c 	. k . 
-	call s0534h		;0c81	cd 34 05 	. 4 . 
+	call ERRMSG		;0c81	cd 34 05 	. 4 . 
 	db 'MEM FULL',0
 s0c8dh:
 	call s1f56h		;0c8d	cd 56 1f 	. V . 
@@ -1890,12 +1961,12 @@ l0ea1h:
 	stc			;0ea9	37 	7 
 	ret			;0eaa	c9 	. 
 s0eabh:
-	cpi 013h		;0eab	fe 13 	. . 
+	cpi CTRLS		;0eab	fe 13 	. . 
 	jz l0ec7h		;0ead	ca c7 0e 	. . . 
 	rnc 			;0eb0	d0 	. 
-	cpi 001h		;0eb1	fe 01 	. . 
+	cpi CTRLA		;0eb1	fe 01 	. . 
 	rz			;0eb3	c8 	. 
-	cpi 00fh		;0eb4	fe 0f 	. . 
+	cpi CTRLO		;0eb4	fe 0f 	. . 
 	rnz			;0eb6	c0 	. 
 	inx d			;0eb7	13 	. 
 	ldax d			;0eb8	1a 	. 
@@ -1912,7 +1983,7 @@ l0ec5h:
 l0ec7h:
 	mov a,m			;0ec7	7e 	~ 
 	call s0ed7h		;0ec8	cd d7 0e 	. . . 
-	mvi a,013h		;0ecb	3e 13 	> . 
+	mvi a,CTRLS		;0ecb	3e 13 	> . 
 	jnc l0ec5h		;0ecd	d2 c5 0e 	. . . 
 l0ed0h:
 	ora a			;0ed0	b7 	. 
@@ -1924,11 +1995,11 @@ s0ed2h:
 s0ed7h:
 	call s2229h		;0ed7	cd 29 22 	. ) " 
 	rc			;0eda	d8 	. 
-	call s064ch		;0edb	cd 4c 06 	. L . 
-	cpi 041h		;0ede	fe 41 	. A 
+	call UC		;0edb	cd 4c 06 	. L . 
+	cpi 'A'		;0ede	fe 41 	. A 
 	cmc			;0ee0	3f 	? 
 	rnc 			;0ee1	d0 	. 
-	cpi 05bh		;0ee2	fe 5b 	. [ 
+	cpi '['		;0ee2	fe 5b 	. [ 
 	ret			;0ee4	c9 	. 
 l0ee5h:
 	push b			;0ee5	c5 	. 
@@ -1957,7 +2028,7 @@ l0f0dh:
 	lxi d,0273fh		;0f17	11 3f 27 	. ? ' 
 	jmp l1e05h		;0f1a	c3 05 1e 	. . . 
 s0f1dh:
-	call s0534h		;0f1d	cd 34 05 	. 4 . 
+	call ERRMSG		;0f1d	cd 34 05 	. 4 . 
 	db 'PUTCUR ERR',0
 s0f2bh:
 	call s18e3h		;0f2b	cd e3 18 	. . . 
@@ -1994,7 +2065,7 @@ l0f64h:
 	ora a			;0f67	b7 	. 
 	jnz l0fa4h		;0f68	c2 a4 0f 	. . . 
 	call s1502h		;0f6b	cd 02 15 	. . . 
-	call s01f2h		;0f6e	cd f2 01 	. . . 
+	call CURHOME		;0f6e	cd f2 01 	. . . 
 	lhld l2685h		;0f71	2a 85 26 	* . & 
 	call s17eah		;0f74	cd ea 17 	. . . 
 	mvi a,07bh		;0f77	3e 7b 	> { 
@@ -2010,7 +2081,7 @@ l0f7fh:
 	jnz l0f93h		;0f8f	c2 93 0f 	. . . 
 	inx d			;0f92	13 	. 
 l0f93h:
-	call s24fch		;0f93	cd fc 24 	. . $ 
+	call OUTCH5		;0f93	cd fc 24 	. . $ 
 	jmp l0f7fh		;0f96	c3 7f 0f 	.  . 
 l0f99h:
 	xchg			;0f99	eb 	. 
@@ -2023,7 +2094,7 @@ l0fa4h:
 	ora a			;0fa7	b7 	. 
 	jnz l1039h		;0fa8	c2 39 10 	. 9 . 
 	lhld l2691h		;0fab	2a 91 26 	* . & 
-	call l020bh		;0fae	cd 0b 02 	. . . 
+	call MOVCUR1		;0fae	cd 0b 02 	. . . 
 	call s186eh		;0fb1	cd 6e 18 	. n . 
 	call s105dh		;0fb4	cd 5d 10 	. ] . 
 	ani 0e8h		;0fb7	e6 e8 	. . 
@@ -2080,7 +2151,7 @@ l101ah:
 	jnz l1055h		;1027	c2 55 10 	. U . 
 	push h			;102a	e5 	. 
 	mvi a,LF		;102b	3e 0a 	> . 
-	call s24fch		;102d	cd fc 24 	. . $ 
+	call OUTCH5		;102d	cd fc 24 	. . $ 
 	mvi e,0ffh		;1030	1e ff 	. . 
 	jmp l100ah		;1032	c3 0a 10 	. . . 
 l1035h:
@@ -2090,27 +2161,27 @@ l1039h:
 	lxi h,0ffffh		;1039	21 ff ff 	. . . 
 	shld l269ch		;103c	22 9c 26 	" . & 
 	mvi e,000h		;103f	1e 00 	. . 
-	call s0208h		;1041	cd 08 02 	. . . 
-	lxi h,l26a1h+2		;1044	21 a3 26 	. . & 
+	call MOVCUR		;1041	cd 08 02 	. . . 
+	lxi h,l26a3h		;1044	21 a3 26 	. . & 
 	mov a,m			;1047	7e 	~ 
 	ora a			;1048	b7 	. 
 	rz			;1049	c8 	. 
 	inx h			;104a	23 	# 
 	mvi m,0ffh		;104b	36 ff 	6 . 
 	mvi a,03ch		;104d	3e 3c 	> < 
-	call s2567h		;104f	cd 67 25 	. g % 
-	jmp s0208h		;1052	c3 08 02 	. . . 
+	call OUTCH4		;104f	cd 67 25 	. g % 
+	jmp MOVCUR		;1052	c3 08 02 	. . . 
 l1055h:
 	mvi a,LF		;1055	3e 0a 	> . 
-	call s24fch		;1057	cd fc 24 	. . $ 
-	jmp s0208h		;105a	c3 08 02 	. . . 
+	call OUTCH5		;1057	cd fc 24 	. . $ 
+	jmp MOVCUR		;105a	c3 08 02 	. . . 
 s105dh:
 	push b			;105d	c5 	. 
 	push d			;105e	d5 	. 
 	push h			;105f	e5 	. 
 	call l234eh		;1060	cd 4e 23 	. N # 
 	lxi b,FBASE		;1063	01 06 00 	. . . 
-	lhld l25b7h		;1066	2a b7 25 	* . % 
+	lhld BUFF2		;1066	2a b7 25 	* . % 
 	xchg			;1069	eb 	. 
 	dcx d			;106a	1b 	. 
 l106bh:
@@ -2120,7 +2191,7 @@ l106bh:
 	ldax d			;1070	1a 	. 
 	inr a			;1071	3c 	< 
 	jnz l107ah		;1072	c2 7a 10 	. z . 
-	lxi d,l25b9h		;1075	11 b9 25 	. . % 
+	lxi d,BUFF		;1075	11 b9 25 	. . % 
 	ldax d			;1078	1a 	. 
 	inr a			;1079	3c 	< 
 l107ah:
@@ -2129,17 +2200,17 @@ l107ah:
 	call s10bbh		;107e	cd bb 10 	. . . 
 	jmp l106bh		;1081	c3 6b 10 	. k . 
 l1084h:
-	lda l26a1h+1		;1084	3a a2 26 	: . & 
+	lda l26a2h		;1084	3a a2 26 	: . & 
 	cpi 002h		;1087	fe 02 	. . 
 	jc l1092h		;1089	da 92 10 	. . . 
 	lda l269dh+2		;108c	3a 9f 26 	: . & 
 	call s10bbh		;108f	cd bb 10 	. . . 
 l1092h:
-	lda l26a1h+2		;1092	3a a3 26 	: . & 
+	lda l26a3h		;1092	3a a3 26 	: . & 
 	ori 0f3h		;1095	f6 f3 	. . 
 	ana b			;1097	a0 	. 
 	mov b,a			;1098	47 	G 
-	lda l268fh		;1099	3a 8f 26 	: . & 
+	lda NEWXPOS		;1099	3a 8f 26 	: . & 
 	ora a			;109c	b7 	. 
 	mov a,b			;109d	78 	x 
 	jz l10a3h		;109e	ca a3 10 	. . . 
@@ -2149,7 +2220,7 @@ l10a3h:
 	rar			;10a4	1f 	. 
 	mov a,b			;10a5	78 	x 
 	jnc l10b8h		;10a6	d2 b8 10 	. . . 
-	lda l268fh		;10a9	3a 8f 26 	: . & 
+	lda NEWXPOS		;10a9	3a 8f 26 	: . & 
 	adi 004h		;10ac	c6 04 	. . 
 	lxi h,l2680h		;10ae	21 80 26 	. . & 
 	cmp m			;10b1	be 	. 
@@ -2210,7 +2281,7 @@ s10f7h:
 	lxi h,0ff00h		;10f7	21 00 ff 	. . . 
 	shld l26a4h+1		;10fa	22 a5 26 	" . & 
 	xra a			;10fd	af 	. 
-	sta l26a1h+1		;10fe	32 a2 26 	2 . & 
+	sta l26a2h		;10fe	32 a2 26 	2 . & 
 	lda HITE		;1101	3a b9 01 	: . . 
 	sui 002h		;1104	d6 02 	. . 
 l1106h:
@@ -2240,7 +2311,7 @@ l1138h:
 	mov m,a			;1138	77 	w 
 	lxi h,l1125h		;1139	21 25 11 	. % . 
 	push h			;113c	e5 	. 
-	lxi h,l26a1h+1		;113d	21 a2 26 	. . & 
+	lxi h,l26a2h		;113d	21 a2 26 	. . & 
 	dcr m			;1140	35 	5 
 	jz l1147h		;1141	ca 47 11 	. G . 
 	jp l1175h		;1144	f2 75 11 	. u . 
@@ -2251,13 +2322,13 @@ l1149h:
 	sta l269dh+2		;114c	32 9f 26 	2 . & 
 	cpi 000h		;114f	fe 00 	. . 
 	jnz l1175h		;1151	c2 75 11 	. u . 
-	lxi h,l26a1h+1		;1154	21 a2 26 	. . & 
+	lxi h,l26a2h		;1154	21 a2 26 	. . & 
 	mov a,m			;1157	7e 	~ 
 	push psw			;1158	f5 	. 
 	mvi m,000h		;1159	36 00 	6 . 
 	call l0f64h		;115b	cd 64 0f 	. d . 
 	pop psw			;115e	f1 	. 
-	lxi h,l26a1h+1		;115f	21 a2 26 	. . & 
+	lxi h,l26a2h		;115f	21 a2 26 	. . & 
 	mvi m,004h		;1162	36 04 	6 . 
 	cpi 004h		;1164	fe 04 	. . 
 	jnz l116bh		;1166	c2 6b 11 	. k . 
@@ -2292,8 +2363,8 @@ l119dh:
 l11a0h:
 	mvi a,' '		;11a0	3e 20 	>   
 l11a2h:
-	call s2567h		;11a2	cd 67 25 	. g % 
-	call s0208h		;11a5	cd 08 02 	. . . 
+	call OUTCH4		;11a2	cd 67 25 	. g % 
+	call MOVCUR		;11a5	cd 08 02 	. . . 
 l11a8h:
 	call l234eh		;11a8	cd 4e 23 	. N # 
 	lda l269dh+2		;11ab	3a 9f 26 	: . & 
@@ -2373,7 +2444,7 @@ s1209h:
 	rz			;120e	c8 	. 
 	inr m			;120f	34 	4 
 	lhld l2680h		;1210	2a 80 26 	* . & 
-	jmp l020bh		;1213	c3 0b 02 	. . . 
+	jmp MOVCUR1		;1213	c3 0b 02 	. . . 
 s1216h:
 	call s1374h		;1216	cd 74 13 	. t . 
 	call s1875h		;1219	cd 75 18 	. u . 
@@ -2426,7 +2497,7 @@ l127ch:
 	call s15f3h		;1289	cd f3 15 	. . . 
 	jz l12ach		;128c	ca ac 12 	. . . 
 	xra a			;128f	af 	. 
-	sta l268fh+1		;1290	32 90 26 	2 . & 
+	sta NEWYPOS		;1290	32 90 26 	2 . & 
 	lhld CURXPOS		;1293	2a 83 26 	* . & 
 	push h			;1296	e5 	. 
 	lxi h,0			;1297	21 00 00 	. . . 
@@ -2440,17 +2511,17 @@ l12ach:
 	mvi d,0			;12ac	16 00 	. . 
 	mvi a,240		;12ae	3e f0 	> . 
 l12b0h:
-	sta l268fh+1		;12b0	32 90 26 	2 . & 
+	sta NEWYPOS		;12b0	32 90 26 	2 . & 
 	jmp l12f7h		;12b3	c3 f7 12 	. . . 
 	mvi d,0			;12b6	16 00 	. . 
-	lda l268fh+1		;12b8	3a 90 26 	: . & 
+	lda NEWYPOS		;12b8	3a 90 26 	: . & 
 	ori 007h		;12bb	f6 07 	. . 
 	inr a			;12bd	3c 	< 
 	jmp l12b0h		;12be	c3 b0 12 	. . . 
 	call s15ech		;12c1	cd ec 15 	. . . 
 l12c4h:
 	push psw			;12c4	f5 	. 
-	lxi h,l268fh		;12c5	21 8f 26 	. . & 
+	lxi h,NEWXPOS		;12c5	21 8f 26 	. . & 
 	add m			;12c8	86 	. 
 	lxi h,l2680h		;12c9	21 80 26 	. . & 
 	sub m			;12cc	96 	. 
@@ -2464,11 +2535,11 @@ l12c4h:
 	jm l12f5h		;12da	fa f5 12 	. . . 
 	call s1660h		;12dd	cd 60 16 	. ` . 
 	jz l12f5h		;12e0	ca f5 12 	. . . 
-	lxi h,l26a1h+1		;12e3	21 a2 26 	. . & 
+	lxi h,l26a2h		;12e3	21 a2 26 	. . & 
 	mvi m,001h		;12e6	36 01 	6 . 
 	call s137ch		;12e8	cd 7c 13 	. | . 
 	call s1728h		;12eb	cd 28 17 	. ( . 
-	call s0208h		;12ee	cd 08 02 	. . . 
+	call MOVCUR		;12ee	cd 08 02 	. . . 
 	pop psw			;12f1	f1 	. 
 	jmp l12c4h		;12f2	c3 c4 12 	. . . 
 l12f5h:
@@ -2543,8 +2614,8 @@ s1374h:
 	rnz			;1378	c0 	. 
 	jmp s1425h		;1379	c3 25 14 	. % . 
 s137ch:
-	lda l26a1h+1		;137c	3a a2 26 	: . & 
-	cpi 011h		;137f	fe 11 	. . 
+	lda l26a2h		;137c	3a a2 26 	: . & 
+	cpi CTRLQ		;137f	fe 11 	. . 
 	jnc l1401h		;1381	d2 01 14 	. . . 
 	call s1660h		;1384	cd 60 16 	. ` . 
 	jz l1401h		;1387	ca 01 14 	. . . 
@@ -2563,7 +2634,7 @@ l13a2h:
 	xra a			;13a5	af 	. 
 	sta l2680h+2		;13a6	32 82 26 	2 . & 
 	lhld 02697h		;13a9	2a 97 26 	* . & 
-	call l020bh		;13ac	cd 0b 02 	. . . 
+	call MOVCUR1		;13ac	cd 0b 02 	. . . 
 	lda CURXPOS		;13af	3a 83 26 	: . & 
 	lxi h,0268dh		;13b2	21 8d 26 	. . & 
 	add m			;13b5	86 	. 
@@ -2573,7 +2644,7 @@ l13a2h:
 l13bdh:
 	call s187fh		;13bd	cd 7f 18 	.  . 
 	jc l13eah		;13c0	da ea 13 	. . . 
-	call s24fch		;13c3	cd fc 24 	. . $ 
+	call OUTCH5		;13c3	cd fc 24 	. . $ 
 	lda CURXPOS		;13c6	3a 83 26 	: . & 
 	push h			;13c9	e5 	. 
 	lxi h,l2680h+2		;13ca	21 82 26 	. . & 
@@ -2588,7 +2659,7 @@ l13d3h:
 	jc l13eah		;13dc	da ea 13 	. . . 
 	cpi LF		;13df	fe 0a 	. . 
 	jz l13eah		;13e1	ca ea 13 	. . . 
-	call s24fch		;13e4	cd fc 24 	. . $ 
+	call OUTCH5		;13e4	cd fc 24 	. . $ 
 	jmp l13d3h		;13e7	c3 d3 13 	. . . 
 l13eah:
 	lhld CURXPOS		;13ea	2a 83 26 	* . & 
@@ -2628,7 +2699,7 @@ s1425h:
 	pop psw			;142a	f1 	. 
 	ret			;142b	c9 	. 
 	xra a			;142c	af 	. 
-	sta l26a6h+1		;142d	32 a7 26 	2 . & 
+	sta INCHAR		;142d	32 a7 26 	2 . & 
 	call s1875h		;1430	cd 75 18 	. u . 
 	lhld l2685h		;1433	2a 85 26 	* . & 
 	xchg			;1436	eb 	. 
@@ -2740,7 +2811,7 @@ s1502h:
 	shld l269ch		;1506	22 9c 26 	" . & 
 	pop h			;1509	e1 	. 
 	ret			;150a	c9 	. 
-	lxi h,l26a1h+2		;150b	21 a3 26 	. . & 
+	lxi h,l26a3h		;150b	21 a3 26 	. . & 
 	mov a,m			;150e	7e 	~ 
 	cma			;150f	2f 	/ 
 	mov m,a			;1510	77 	w 
@@ -2766,7 +2837,7 @@ l1530h:
 l153ah:
 	push psw			;153a	f5 	. 
 	lhld l2691h		;153b	2a 91 26 	* . & 
-	call l020bh		;153e	cd 0b 02 	. . . 
+	call MOVCUR1		;153e	cd 0b 02 	. . . 
 	pop psw			;1541	f1 	. 
 	push d			;1542	d5 	. 
 	mvi e,000h		;1543	1e 00 	. . 
@@ -2779,7 +2850,7 @@ l153ah:
 	cpi CR		;1553	fe 0d 	. . 
 	jz l1579h		;1555	ca 79 15 	. y . 
 	mov b,a			;1558	47 	G 
-	lda l26a1h+2		;1559	3a a3 26 	: . & 
+	lda l26a3h		;1559	3a a3 26 	: . & 
 	ora a			;155c	b7 	. 
 	mov a,b			;155d	78 	x 
 	jnz l14c7h		;155e	c2 c7 14 	. . . 
@@ -2796,7 +2867,7 @@ l1573h:
 	jmp l1583h		;1576	c3 83 15 	. . . 
 l1579h:
 	lda CURXPOS		;1579	3a 83 26 	: . & 
-	lxi h,l268fh		;157c	21 8f 26 	. . & 
+	lxi h,NEWXPOS		;157c	21 8f 26 	. . & 
 	cmp m			;157f	be 	. 
 	jnz l14c7h		;1580	c2 c7 14 	. . . 
 l1583h:
@@ -2804,7 +2875,7 @@ l1583h:
 	call s1856h		;1584	cd 56 18 	. V . 
 	shld l2691h		;1587	22 91 26 	" . & 
 	lhld CURXPOS		;158a	2a 83 26 	* . & 
-	shld l268fh		;158d	22 8f 26 	" . & 
+	shld NEWXPOS		;158d	22 8f 26 	" . & 
 	pop h			;1590	e1 	. 
 	jmp l1511h		;1591	c3 11 15 	. . . 
 	call s15ech		;1594	cd ec 15 	. . . 
@@ -2821,7 +2892,7 @@ l1597h:
 	jmp s1500h		;15a8	c3 00 15 	. . . 
 l15abh:
 	call s164fh		;15ab	cd 4f 16 	. O . 
-	lda l26a1h+2		;15ae	3a a3 26 	: . & 
+	lda l26a3h		;15ae	3a a3 26 	: . & 
 	ora a			;15b1	b7 	. 
 	jz l15cbh		;15b2	ca cb 15 	. . . 
 	call s187ch		;15b5	cd 7c 18 	. | . 
@@ -2850,7 +2921,7 @@ s15e2h:
 	mvi a,LF		;15e7	3e 0a 	> . 
 	jmp s0bach		;15e9	c3 ac 0b 	. . . 
 s15ech:
-	lxi h,l26a1h+1		;15ec	21 a2 26 	. . & 
+	lxi h,l26a2h		;15ec	21 a2 26 	. . & 
 	mov a,m			;15ef	7e 	~ 
 	mvi m,000h		;15f0	36 00 	6 . 
 	ret			;15f2	c9 	. 
@@ -2873,7 +2944,7 @@ s15feh:
 	inx b			;160e	03 	. 
 	jmp s15feh		;160f	c3 fe 15 	. . . 
 s1612h:
-	lda l268fh+1		;1612	3a 90 26 	: . & 
+	lda NEWYPOS		;1612	3a 90 26 	: . & 
 	inr a			;1615	3c 	< 
 	mov d,a			;1616	57 	W 
 	lda CURYPOS		;1617	3a 84 26 	: . & 
@@ -2943,19 +3014,19 @@ s1674h:
 	call s1659h		;167a	cd 59 16 	. Y . 
 	jp l16a9h		;167d	f2 a9 16 	. . . 
 l1680h:
-	call s0534h		;1680	cd 34 05 	. 4 . 
+	call ERRMSG		;1680	cd 34 05 	. 4 . 
 	db 'FILE LINE LONGER THAN ENTIRE SCRN ???',0
 l16a9h:
 	lda l269bh		;16a9	3a 9b 26 	: . & 
 	lxi h,0268dh		;16ac	21 8d 26 	. . & 
 	ana m			;16af	a6 	. 
 	jz l1671h		;16b0	ca 71 16 	. q . 
-	lda l268fh		;16b3	3a 8f 26 	: . & 
+	lda NEWXPOS		;16b3	3a 8f 26 	: . & 
 	lxi h,l2680h		;16b6	21 80 26 	. . & 
 	sub m			;16b9	96 	. 
 	jc l16c7h		;16ba	da c7 16 	. . . 
 	jnz l1671h		;16bd	c2 71 16 	. q . 
-	lda l268fh+1		;16c0	3a 90 26 	: . & 
+	lda NEWYPOS		;16c0	3a 90 26 	: . & 
 	ora a			;16c3	b7 	. 
 	jnz l1671h		;16c4	c2 71 16 	. q . 
 l16c7h:
@@ -2967,7 +3038,7 @@ s16d0h:
 	sta l2680h+2		;16d1	32 82 26 	2 . & 
 s16d4h:
 	mvi a,LF		;16d4	3e 0a 	> . 
-	call s24fch		;16d6	cd fc 24 	. . $ 
+	call OUTCH5		;16d6	cd fc 24 	. . $ 
 	lda l2680h+2		;16d9	3a 82 26 	: . & 
 	ora a			;16dc	b7 	. 
 	jz l16e8h		;16dd	ca e8 16 	. . . 
@@ -3033,7 +3104,7 @@ s1728h:
 	mov a,d			;1750	7a 	z 
 	sta 0268dh		;1751	32 8d 26 	2 . & 
 	lhld CURXPOS		;1754	2a 83 26 	* . & 
-	shld l268fh		;1757	22 8f 26 	" . & 
+	shld NEWXPOS		;1757	22 8f 26 	" . & 
 	lhld 02756h		;175a	2a 56 27 	* V ' 
 	xchg			;175d	eb 	. 
 	lhld 0273dh		;175e	2a 3d 27 	* = ' 
@@ -3255,7 +3326,7 @@ s18beh:
 	push d			;18bf	d5 	. 
 	push h			;18c0	e5 	. 
 l18c1h:
-	lda 02749h		;18c1	3a 49 27 	: I ' 
+	lda IOBYTE1		;18c1	3a 49 27 	: I ' 
 	ora a			;18c4	b7 	. 
 	jnz l18ddh		;18c5	c2 dd 18 	. . . 
 	call s18e3h		;18c8	cd e3 18 	. . . 
@@ -3271,22 +3342,22 @@ l18ddh:
 	cnc s2322h		;18dd	d4 22 23 	. " # 
 	jmp POPHDB		;18e0	c3 cc 1f 	. . . 
 s18e3h:
-	lda 02749h		;18e3	3a 49 27 	: I ' 
+	lda IOBYTE1		;18e3	3a 49 27 	: I ' 
 	ora a			;18e6	b7 	. 
 	rnz			;18e7	c0 	. 
 	lda 0f7ffh		;18e8	3a ff f7 	: . . 
 	lxi h,0274ah		;18eb	21 4a 27 	. J ' 
 	cmp m			;18ee	be 	. 
 	rz			;18ef	c8 	. 
-	lda 02749h		;18f0	3a 49 27 	: I ' 
+	lda IOBYTE1		;18f0	3a 49 27 	: I ' 
 	ora a			;18f3	b7 	. 
 	rnz			;18f4	c0 	. 
 	call s1425h		;18f5	cd 25 14 	. % . 
-	call s01f2h		;18f8	cd f2 01 	. . . 
+	call CURHOME		;18f8	cd f2 01 	. . . 
 	lxi h,l25a9h		;18fb	21 a9 25 	. . % 
 	shld l25a7h		;18fe	22 a7 25 	" . % 
 s1901h:
-	lda 02749h		;1901	3a 49 27 	: I ' 
+	lda IOBYTE1		;1901	3a 49 27 	: I ' 
 	ora a			;1904	b7 	. 
 	rnz			;1905	c0 	. 
 	lda 0f7ffh		;1906	3a ff f7 	: . . 
@@ -3300,14 +3371,14 @@ l1913h:
 	sta WID		;1913	32 ba 01 	2 . . 
 	pop psw			;1916	f1 	. 
 	rar			;1917	1f 	. 
-	mvi a,018h		;1918	3e 18 	> . 
+	mvi a,CTRLX		;1918	3e 18 	> . 
 	jnc l191fh		;191a	d2 1f 19 	. . . 
 	mvi a,00ch		;191d	3e 0c 	> . 
 l191fh:
 	sta HITE		;191f	32 b9 01 	2 . . 
 	sui 002h		;1922	d6 02 	. . 
 	sta l2680h		;1924	32 80 26 	2 . & 
-	mvi a,015h		;1927	3e 15 	> . 
+	mvi a,CTRLU		;1927	3e 15 	> . 
 	sta EREOL		;1929	32 bb 01 	2 . . 
 	pop psw			;192c	f1 	. 
 	sta 0274ah		;192d	32 4a 27 	2 J ' 
@@ -3338,7 +3409,7 @@ l1932h:
 	nop			;1952	00 	. 
 	nop			;1953	00 	. 
 l1954h:
-	call s01f2h		;1954	cd f2 01 	. . . 
+	call CURHOME		;1954	cd f2 01 	. . . 
 l1957h:
 	call s1425h		;1957	cd 25 14 	. % . 
 	lxi h,l1932h		;195a	21 32 19 	. 2 . 
@@ -3353,7 +3424,7 @@ l1957h:
 	lxi d,l26f6h+2		;1974	11 f8 26 	. . & 
 	call s1ff4h		;1977	cd f4 1f 	. . . 
 	jnz 019a2h		;197a	c2 a2 19 	. . . 
-	call s0534h		;197d	cd 34 05 	. 4 . 
+	call ERRMSG		;197d	cd 34 05 	. 4 . 
 	db 'WM.HLP NOT FOUND ON DEFAULT OR A:',0	;1980
 	lxi d,026f8h		;19a2	11 f8 26
 	lxi h,027e9h		;19a5	21 e9 27
@@ -3367,9 +3438,9 @@ l19bah:
 	push psw			;19ba	f5 	. 
 	mov a,m			;19bb	7e 	~ 
 	inx h			;19bc	23 	# 
-	cpi 011h		;19bd	fe 11 	. . 
+	cpi CTRLQ		;19bd	fe 11 	. . 
 	jz l19cdh		;19bf	ca cd 19 	. . . 
-	call s24fch		;19c2	cd fc 24 	. . $ 
+	call OUTCH5		;19c2	cd fc 24 	. . $ 
 l19c5h:
 	pop psw			;19c5	f1 	. 
 	dcr a			;19c6	3d 	= 
@@ -3382,7 +3453,7 @@ l19d2h:
 	jnz l19ddh		;19d2	c2 dd 19 	. . . 
 	push h			;19d5	e5 	. 
 l19d6h:
-	call s01f2h		;19d6	cd f2 01 	. . . 
+	call CURHOME		;19d6	cd f2 01 	. . . 
 l19d9h:
 	pop h			;19d9	e1 	. 
 	jmp l19c5h		;19da	c3 c5 19 	. . . 
@@ -3395,7 +3466,7 @@ l19dfh:
 	call s0966h		;19e2	cd 66 09 	. f . 
 	call s1ff4h		;19e5	cd f4 1f 	. . . 
 	jnz l19fdh		;19e8	c2 fd 19 	. . . 
-	call s0534h		;19eb	cd 34 05 	. 4 . 
+	call ERRMSG		;19eb	cd 34 05 	. 4 . 
 	db 'FILE NOT FOUND',0
 l19fdh:
 	call s23d6h		;19fd	cd d6 23 	. . # 
@@ -3842,7 +3913,7 @@ l1d18h:
 	ora a			;1d18	b7 	. 
 	rnz			;1d19	c0 	. 
 l1d1ah:
-	call s0534h		;1d1a	cd 34 05 	. 4 . 
+	call ERRMSG		;1d1a	cd 34 05 	. 4 . 
 	db 'MEM SHORTAGE, TRY CLEARING QBUF',0
 s1d3dh:
 	call s1e49h		;1d3d	cd 49 1e 	. I . 
@@ -4131,7 +4202,7 @@ s1efbh:
 s1f06h:
 	lxi h,l1f53h		;1f06	21 53 1f 	. S . 
 s1f09h:
-	lxi b,00003h		;1f09	01 03 00 	. . . 
+	lxi b,IOBYTE		;1f09	01 03 00 	. . . 
 
 ;
 ;	INPUT:
@@ -4201,7 +4272,7 @@ s1f56h:
 	ori 017h		;1f57	f6 17 	. . 
 	inr a			;1f59	3c 	< 
 	rnz			;1f5a	c0 	. 
-	call s0534h		;1f5b	cd 34 05 	. 4 . 
+	call ERRMSG		;1f5b	cd 34 05 	. 4 . 
 	db 'COPY ERR',0
 s1f67h:
 	push psw			;1f67	f5 	. 
@@ -4339,9 +4410,9 @@ s1ff9h:
 	push h			;1ff9	e5 	. 
 	lxi h,00023h		;1ffa	21 23 00 	. # . 
 	dad d			;1ffd	19 	. 
-	mvi m,000h		;1ffe	36 00 	6 . 
+	mvi m,0			;1ffe	36 00 	6 . 
 	dcx h			;2000	2b 	+ 
-	mvi m,000h		;2001	36 00 	6 . 
+	mvi m,0			;2001	36 00 	6 . 
 	pop h			;2003	e1 	. 
 	ret			;2004	c9 	. 
 s2005h:
@@ -4382,10 +4453,10 @@ l2040h:
 	db 'DIRECTORY FULL',0
 s2052h:
 	push d			;2052	d5 	. 
-	mov e,a			;2053	5f 	_ 
+	mov e,a			;SAVE A
 	lda 0274bh		;2054	3a 4b 27 	: K ' 
-	ora a			;2057	b7 	. 
-	mov a,e			;2058	7b 	{ 
+	ora a			;SET FLAGS
+	mov a,e			;RESTORE A
 	jnz l2062h		;2059	c2 62 20 	. b   
 	call s1fd9h		;205c	cd d9 1f 	. . . 
 	mvi e,0d1h		;205f	1e d1 	. . 
@@ -4487,7 +4558,7 @@ l20f7h:
 	pop psw			;20f7	f1 	. 
 	cpi 002h		;20f8	fe 02 	. . 
 	jnz l2040h		;20fa	c2 40 20 	. @   
-	call s0534h		;20fd	cd 34 05 	. 4 . 
+	call ERRMSG		;20fd	cd 34 05 	. 4 . 
 	db 'DISK FULL',0
 s210ah:
 	call s2165h		;210a	cd 65 21 	. e ! 
@@ -4668,7 +4739,7 @@ l220fh:
 	xchg			;2213	eb 	. 
 	ret			;2214	c9 	. 
 l2215h:
-	call s0534h		;2215	cd 34 05 	. 4 . 
+	call ERRMSG		;2215	cd 34 05 	. 4 . 
 	db 'NUMBER TOO LARGE',0
 s2229h:
 	cpi '0'		;2229	fe 30 	. 0 
@@ -4714,11 +4785,11 @@ l226dh:
 	call s22cdh		;226d	cd cd 22 	. . " 
 l2270h:
 	rz			;2270	c8 	. 
-	jmp s24fch		;2271	c3 fc 24 	. . $ 
+	jmp OUTCH5		;2271	c3 fc 24 	. . $ 
 l2274h:
-	cpi 018h		;2274	fe 18 	. . 
+	cpi CTRLX		;2274	fe 18 	. . 
 	jz l227eh		;2276	ca 7e 22 	. ~ " 
-	cpi 015h		;2279	fe 15 	. . 
+	cpi CTRLU		;2279	fe 15 	. . 
 	jnz l2283h		;227b	c2 83 22 	. . " 
 l227eh:
 	xchg			;227e	eb 	. 
@@ -4752,7 +4823,7 @@ l22a8h:
 	call s0bb9h		;22b3	cd b9 0b 	. . . 
 	jmp l22a8h		;22b6	c3 a8 22 	. . " 
 l22b9h:
-	cpi 012h		;22b9	fe 12 	. . 
+	cpi CTRLR		;22b9	fe 12 	. . 
 	jnz l22c4h		;22bb	c2 c4 22 	. . " 
 	call s24e3h		;22be	cd e3 24 	. . $ 
 	jmp l07beh		;22c1	c3 be 07 	. . . 
@@ -4778,14 +4849,14 @@ l22d5h:
 	jmp l22e1h		;22d7	c3 e1 22 	. . " 
 l22dah:
 	mvi a,CR		;22da	3e 0d 	> . 
-	call s24fch		;22dc	cd fc 24 	. . $ 
+	call OUTCH5		;22dc	cd fc 24 	. . $ 
 l22dfh:
 	mvi b,LF		;22df	06 0a 	. . 
 l22e1h:
 	sta 0286bh		;22e1	32 6b 28 	2 k ( 
 	mvi m,000h		;22e4	36 00 	6 . 
 	mov a,b			;22e6	78 	x 
-	call s24fch		;22e7	cd fc 24 	. . $ 
+	call OUTCH5		;22e7	cd fc 24 	. . $ 
 	pop h			;22ea	e1 	. 
 	pop psw			;22eb	f1 	. 
 	sta l26a4h+1		;22ec	32 a5 26 	2 . & 
@@ -4826,12 +4897,12 @@ PRINT$0:
 	mov a,m			;2318	7e 	~ 
 	ora a			;2319	b7 	. 
 	rz			;231a	c8 	. 
-	call s24fch		;231b	cd fc 24 	. . $ 
+	call OUTCH5		;231b	cd fc 24 	. . $ 
 	inx h			;231e	23 	# 
 	jmp PRINT$0		;231f	c3 18 23 	. . # 
 s2322h:
 	push h			;2322	e5 	. 
-	lhld l25b7h		;2323	2a b7 25 	* . % 
+	lhld BUFF2		;2323	2a b7 25 	* . % 
 	mov a,m			;2326	7e 	~ 
 	ora a			;2327	b7 	. 
 	jz l2340h		;2328	ca 40 23 	. @ # 
@@ -4841,9 +4912,9 @@ s2322h:
 	mov a,m			;232f	7e 	~ 
 	inr a			;2330	3c 	< 
 	jnz l2337h		;2331	c2 37 23 	. 7 # 
-	lxi h,l25b9h		;2334	21 b9 25 	. . % 
+	lxi h,BUFF		;2334	21 b9 25 	. . % 
 l2337h:
-	shld l25b7h		;2337	22 b7 25 	" . % 
+	shld BUFF2		;2337	22 b7 25 	" . % 
 	call l234eh		;233a	cd 4e 23 	. N # 
 	pop psw			;233d	f1 	. 
 	pop h			;233e	e1 	. 
@@ -4851,23 +4922,23 @@ l2337h:
 l2340h:
 	pop h			;2340	e1 	. 
 l2341h:
-	call s23b4h		;2341	cd b4 23 	. . # 
-	ani 07fh		;2344	e6 7f 	.  
+	call CONINP		;GET INPUT CHARACTER
+	ani 07fh		;STRIP HIGH BIT
 	call s239ch		;2346	cd 9c 23 	. . # 
-	jz l2341h		;2349	ca 41 23 	. A # 
+	jz l2341h		;VIO - GET ANOTHER CHARACTER
 	ora a			;234c	b7 	. 
 	ret			;234d	c9 	. 
 l234eh:
 	push h			;234e	e5 	. 
 l234fh:
-	call s23c0h		;234f	cd c0 23 	. . # 
+	call CONSTAT		;234f	cd c0 23 	. . # 
 	jz l2395h		;2352	ca 95 23 	. . # 
 l2355h:
-	lhld l25b5h		;2355	2a b5 25 	* . % 
+	lhld BUFF1		;2355	2a b5 25 	* . % 
 	mov a,m			;2358	7e 	~ 
 	ora a			;2359	b7 	. 
 	jnz l2383h		;235a	c2 83 23 	. . # 
-	call s23b4h		;235d	cd b4 23 	. . # 
+	call CONINP		;235d	cd b4 23 	. . # 
 	ani 07fh		;2360	e6 7f 	.  
 	cnz s239ch		;2362	c4 9c 23 	. . # 
 	jz l234fh		;2365	ca 4f 23 	. O # 
@@ -4876,20 +4947,20 @@ l2355h:
 	mov a,m			;236a	7e 	~ 
 	inr a			;236b	3c 	< 
 	jnz l2372h		;236c	c2 72 23 	. r # 
-	lxi h,l25b9h		;236f	21 b9 25 	. . % 
+	lxi h,BUFF		;236f	21 b9 25 	. . % 
 l2372h:
-	shld l25b5h		;2372	22 b5 25 	" . % 
+	shld BUFF1		;2372	22 b5 25 	" . % 
 	mov a,m			;2375	7e 	~ 
 	ora a			;2376	b7 	. 
 	jnz l2383h		;2377	c2 83 23 	. . # 
-	call s23c0h		;237a	cd c0 23 	. . # 
+	call CONSTAT		;237a	cd c0 23 	. . # 
 	jnz l2355h		;237d	c2 55 23 	. U # 
 	jmp l2391h		;2380	c3 91 23 	. . # 
 l2383h:
-	mvi a,021h		;2383	3e 21 	> ! 
-	call s24fch		;2385	cd fc 24 	. . $ 
-	mvi a,007h		;2388	3e 07 	> . 
-	call s259bh		;238a	cd 9b 25 	. . % 
+	mvi a,'!'		;2383	3e 21 	> ! 
+	call OUTCH5		;2385	cd fc 24 	. . $ 
+	mvi a,BELL		;2388	3e 07 	> . 
+	call OUTCH2		;238a	cd 9b 25 	. . % 
 	xra a			;238d	af 	. 
 	sta l269bh		;238e	32 9b 26 	2 . & 
 l2391h:
@@ -4897,34 +4968,38 @@ l2391h:
 	ori 001h		;2392	f6 01 	. . 
 	ret			;2394	c9 	. 
 l2395h:
-	lhld l25b7h		;2395	2a b7 25 	* . % 
+	lhld BUFF2		;2395	2a b7 25 	* . % 
 	mov a,m			;2398	7e 	~ 
 	ora a			;2399	b7 	. 
 	pop h			;239a	e1 	. 
 	ret			;239b	c9 	. 
 s239ch:
-	cpi 016h		;239c	fe 16 	. . 
-	rnz			;239e	c0 	. 
-	call s23b4h		;239f	cd b4 23 	. . # 
+	cpi CTRLV
+	rnz			;RETURN IF NOT VIO CONTROL
+	call CONINP		;239f	cd b4 23 	. . # 
 	push psw			;23a2	f5 	. 
-	call s259bh		;23a3	cd 9b 25 	. . % 
+	call OUTCH2		;23a3	cd 9b 25 	. . % 
 	pop psw			;23a6	f1 	. 
 	cpi ESC		;23a7	fe 1b 	. . 
 	jnz l23b2h		;23a9	c2 b2 23 	. . # 
-	call s23b4h		;23ac	cd b4 23 	. . # 
-	call s259bh		;23af	cd 9b 25 	. . % 
+	call CONINP		;23ac	cd b4 23 	. . # 
+	call OUTCH2		;23af	cd 9b 25 	. . % 
 l23b2h:
-	xra a			;23b2	af 	. 
-	ret			;23b3	c9 	. 
-s23b4h:
-	mvi a,006h		;23b4	3e 06 	> . 
+	xra a			;CLEAR ZERO FLAG
+	ret			;RETURN
+CONINP:
+	mvi a,CONIN*3		;23b4	3e 06 	> . 
 	call BIOS		;23b6	cd c7 23 	. . # 
-	cpi 003h		;23b9	fe 03 	. . 
+	cpi CTRLC		;23b9	fe 03 	. . 
 	rnz			;23bb	c0 	. 
-	sta l26a6h+1		;23bc	32 a7 26 	2 . & 
+	sta INCHAR		;23bc	32 a7 26 	2 . & 
 	ret			;23bf	c9 	. 
-s23c0h:
-	mvi a,003h		;23c0	3e 03 	> . 
+
+;	GET CONSOLE STATUS READY
+;	ZERO - NO CHARACTER
+;	NOT ZERO - CHARACTER READY
+CONSTAT:
+	mvi a,CONST*3		;23c0	3e 03 	> . 
 	call BIOS		;23c2	cd c7 23 	. . # 
 	ora a			;23c5	b7 	. 
 	ret			;23c6	c9 	. 
@@ -4950,16 +5025,16 @@ s23d6h:
 	ret			;23e2	c9 	. 
 l23e3h:
 	call s23fah		;23e3	cd fa 23 	. . # 
-	jnz l23ebh		;23e6	c2 eb 23 	. . # 
+	jnz INTR		;23e6	c2 eb 23 	. . # 
 	pop psw			;23e9	f1 	. 
 	ret			;23ea	c9 	. 
-l23ebh:
-	call s0534h		;23eb	cd 34 05 	. 4 . 
+INTR:
+	call ERRMSG		;23eb	cd 34 05 	. 4 . 
 	db 'INTERRUPTED',0
 s23fah:
 	call l234eh		;23fa	cd 4e 23 	. N # 
 	push h			;23fd	e5 	. 
-	lxi h,l26a6h+1		;23fe	21 a7 26 	. . & 
+	lxi h,INCHAR		;23fe	21 a7 26 	. . & 
 	mov a,m			;2401	7e 	~ 
 	mvi m,000h		;2402	36 00 	6 . 
 	ora a			;2404	b7 	. 
@@ -4967,16 +5042,16 @@ s23fah:
 	rz			;2406	c8 	. 
 	push b			;2407	c5 	. 
 	push h			;2408	e5 	. 
-	lxi h,l25b9h		;2409	21 b9 25 	. . % 
-	shld l25b5h		;240c	22 b5 25 	" . % 
-	shld l25b7h		;240f	22 b7 25 	" . % 
+	lxi h,BUFF		;2409	21 b9 25 	. . % 
+	shld BUFF1		;240c	22 b5 25 	" . % 
+	shld BUFF2		;240f	22 b7 25 	" . % 
 	mvi c,064h		;2412	0e 64 	. d 
 	xra a			;2414	af 	. 
-l2415h:
+CLRBUF:
 	mov m,a			;2415	77 	w 
 	inx h			;2416	23 	# 
 	dcr c			;2417	0d 	. 
-	jnz l2415h		;2418	c2 15 24 	. . $ 
+	jnz CLRBUF		;2418	c2 15 24 	. . $ 
 	dcr c			;241b	0d 	. 
 	pop h			;241c	e1 	. 
 	pop b			;241d	c1 	. 
@@ -4989,7 +5064,7 @@ s2421h:
 	call s2465h		;2426	cd 65 24 	. e $ 
 	rnc 			;2429	d0 	. 
 	call s2430h		;242a	cd 30 24 	. 0 $ 
-	jmp s24fch		;242d	c3 fc 24 	. . $ 
+	jmp OUTCH5		;242d	c3 fc 24 	. . $ 
 s2430h:
 	push psw			;2430	f5 	. 
 	inr e			;2431	1c 	. 
@@ -5002,7 +5077,7 @@ s2430h:
 	cpi TAB		;243a	fe 09 	. . 
 	jnz l2462h		;243c	c2 62 24 	. b $ 
 l243fh:
-	lda l26a1h		;243f	3a a1 26 	: . & 
+	lda LASTOUT		;243f	3a a1 26 	: . & 
 	cpi CR		;2442	fe 0d 	. . 
 	jz l2462h		;2444	ca 62 24 	. b $ 
 	call l234eh		;2447	cd 4e 23 	. N # 
@@ -5023,7 +5098,7 @@ l2462h:
 s2465h:
 	call s246ch		;2465	cd 6c 24 	. l $ 
 	rc			;2468	d8 	. 
-	jmp s24fch		;2469	c3 fc 24 	. . $ 
+	jmp OUTCH5		;2469	c3 fc 24 	. . $ 
 s246ch:
 	cpi CR		;246c	fe 0d 	. . 
 	rz			;246e	c8 	. 
@@ -5107,9 +5182,9 @@ l24dch:
 s24e3h:
 	push psw			;24e3	f5 	. 
 	mvi a,CR		;24e4	3e 0d 	> . 
-	call s24fch		;24e6	cd fc 24 	. . $ 
+	call OUTCH5		;24e6	cd fc 24 	. . $ 
 	mvi a,LF		;24e9	3e 0a 	> . 
-	call s24fch		;24eb	cd fc 24 	. . $ 
+	call OUTCH5		;24eb	cd fc 24 	. . $ 
 	pop psw			;24ee	f1 	. 
 	ret			;24ef	c9 	. 
 s24f0h:
@@ -5121,7 +5196,7 @@ s24f0h:
 	rz			;24f8	c8 	. 
 	cpi 01ch		;24f9	fe 1c 	. . 
 	rz			;24fb	c8 	. 
-s24fch:
+OUTCH5:
 	push psw			;24fc	f5 	. 
 	push h			;24fd	e5 	. 
 	cpi ESC		;24fe	fe 1b 	. . 
@@ -5156,7 +5231,7 @@ l2535h:
 	mvi m,000h		;2535	36 00 	6 . 
 l2537h:
 	mvi a,' '		;2537	3e 20 	>   
-	call s2567h		;2539	cd 67 25 	. g % 
+	call OUTCH4		;2539	cd 67 25 	. g % 
 	inr m			;253c	34 	4 
 	lda CURYPOS		;253d	3a 84 26 	: . & 
 	ani 007h		;2540	e6 07 	. . 
@@ -5168,7 +5243,7 @@ l2548h:
 	cpi LF		;254d	fe 0a 	. . 
 	jz l255bh		;254f	ca 5b 25 	. [ % 
 	mvi a,'^'		;2552	3e 5e 	> ^ 
-	call s2567h		;2554	cd 67 25 	. g % 
+	call OUTCH4		;2554	cd 67 25 	. g % 
 	pop psw			;2557	f1 	. 
 	adi 040h		;2558	c6 40 	. @ 
 	push psw			;255a	f5 	. 
@@ -5177,53 +5252,55 @@ l255bh:
 	pop psw			;255e	f1 	. 
 	pop h			;255f	e1 	. 
 	cpi TAB		;2560	fe 09 	. . 
-	cnz s2567h		;2562	c4 67 25 	. g % 
+	cnz OUTCH4		;2562	c4 67 25 	. g % 
 	pop psw			;2565	f1 	. 
 	ret			;2566	c9 	. 
-s2567h:
+OUTCH4:
 	push psw			;2567	f5 	. 
-	call s259bh		;2568	cd 9b 25 	. . % 
+	call OUTCH2		;2568	cd 9b 25 	. . % 
 	pop psw			;256b	f1 	. 
 	push psw			;256c	f5 	. 
 	push h			;256d	e5 	. 
-	call s2574h		;256e	cd 74 25 	. t % 
+	call MOVY		;256e	cd 74 25 	. t % 
 	pop h			;2571	e1 	. 
 	pop psw			;2572	f1 	. 
 	ret			;2573	c9 	. 
-s2574h:
+
+;	A = OUTPUT CHARACTER
+MOVY:
 	lxi h,CURYPOS		;2574	21 84 26 	. . & 
-	cpi LF		;2577	fe 0a 	. . 
-	jz l2586h		;2579	ca 86 25 	. . % 
-	cpi CR		;257c	fe 0d 	. . 
-	jnz l2584h		;257e	c2 84 25 	. . % 
-	mvi m,000h		;2581	36 00 	6 . 
-	ret			;2583	c9 	. 
-l2584h:
-	inr m			;2584	34 	4 
+	cpi LF			;2577	fe 0a 	. . 
+	jz MOVY$1		;2579	ca 86 25 	. . % 
+	cpi CR			;257c	fe 0d 	. . 
+	jnz MOVY$0		;257e	c2 84 25 	. . % 
+	mvi m,0			;CURYPOS=0
+	ret
+MOVY$0:
+	inr m			;CURYPOS=CURYPOS+1
 	ret			;2585	c9 	. 
-l2586h:
-	dcx h			;2586	2b 	+ 
-	inr m			;2587	34 	4 
+MOVY$1:
+	dcx h			;HE=CURXPOS
+	inr m			;CURXPOS=CURXPOS+1
 	lda HITE		;2588	3a b9 01 	: . . 
 	dcr a			;258b	3d 	= 
 	cmp m			;258c	be 	. 
 	rnc 			;258d	d0 	. 
 	dcr m			;258e	35 	5 
-	dcx h			;258f	2b 	+ 
+	dcx h			;HE = *CURXPOS-1
 	inr m			;2590	34 	4 
 	ret			;2591	c9 	. 
-l2592h:
+OUTCH1:
 	push psw		;SAVE PSW
 	xra a			;A=0
-	sta l26a1h		;26A1=0
+	sta LASTOUT		;26A1=0
 	pop psw			;RESTORE A
-	jmp l259eh		;2598	c3 9e 25 	. . % 
-s259bh:
-	sta l26a1h		;259b	32 a1 26 	2 . & 
-l259eh:
+	jmp OUTCH3		;2598	c3 9e 25 	. . % 
+OUTCH2:
+	sta LASTOUT		;259b	32 a1 26 	2 . & 
+OUTCH3:
 	push b			;SAVE B
 	mov c,a			;C=A CHAR TO PRINT
-	mvi a,009h		;BIOS CONOUT (3)
+	mvi a,CONOUT*3		;BIOS CONOUT (3)
 	call BIOS		;25a2	cd c7 23 	. . # 
 	pop b			;RESTORE B
 	ret			;25a6	c9 	. 
@@ -5246,14 +5323,13 @@ l25b3h:
 	nop			;25b3	00 	. 
 l25b4h:
 	rst 7			;25b4	ff 	. 
-l25b5h:
+BUFF1:
 	cmp c			;25b5	b9 	. 
 	dcr h			;25b6	25 	% 
-l25b7h:
+BUFF2:
 	cmp c			;25b7	b9 	. 
-l25b8h:
 	dcr h			;25b8	25 	% 
-l25b9h:
+BUFF:
 	nop			;25b9	00 	. 
 	nop			;25ba	00 	. 
 	nop			;25bb	00 	. 
@@ -5270,24 +5346,16 @@ l25b9h:
 	nop			;25c6	00 	. 
 	nop			;25c7	00 	. 
 	nop			;25c8	00 	. 
-l25c9h:
 	nop			;25c9	00 	. 
-l25cah:
 	nop			;25ca	00 	. 
-l25cbh:
 	nop			;25cb	00 	. 
 	nop			;25cc	00 	. 
-l25cdh:
 	nop			;25cd	00 	. 
 	nop			;25ce	00 	. 
-l25cfh:
 	nop			;25cf	00 	. 
-l25d0h:
 	nop			;25d0	00 	. 
 	nop			;25d1	00 	. 
-l25d2h:
 	nop			;25d2	00 	. 
-l25d3h:
 	nop			;25d3	00 	. 
 	nop			;25d4	00 	. 
 	nop			;25d5	00 	. 
@@ -5300,7 +5368,6 @@ l25d3h:
 	nop			;25dc	00 	. 
 	nop			;25dd	00 	. 
 	nop			;25de	00 	. 
-l25dfh:
 	nop			;25df	00 	. 
 	nop			;25e0	00 	. 
 	nop			;25e1	00 	. 
@@ -5321,15 +5388,11 @@ l25dfh:
 	nop			;25f0	00 	. 
 	nop			;25f1	00 	. 
 	nop			;25f2	00 	. 
-l25f3h:
 	nop			;25f3	00 	. 
-l25f4h:
 	nop			;25f4	00 	. 
 	nop			;25f5	00 	. 
-l25f6h:
 	nop			;25f6	00 	. 
 	nop			;25f7	00 	. 
-l25f8h:
 	nop			;25f8	00 	. 
 	nop			;25f9	00 	. 
 	nop			;25fa	00 	. 
@@ -5363,13 +5426,11 @@ l25f8h:
 	nop			;2616	00 	. 
 	nop			;2617	00 	. 
 	nop			;2618	00 	. 
-l2619h:
 	nop			;2619	00 	. 
 	nop			;261a	00 	. 
-l261bh:
 	nop			;261b	00 	. 
 	nop			;261c	00 	. 
-l261dh:
+;
 	rst 7			;261d	ff 	. 
 	nop			;261e	00 	. 
 	nop			;261f	00 	. 
@@ -5405,7 +5466,6 @@ l261dh:
 	nop			;263d	00 	. 
 	nop			;263e	00 	. 
 	nop			;263f	00 	. 
-l2640h:
 	nop			;2640	00 	. 
 	nop			;2641	00 	. 
 	nop			;2642	00 	. 
@@ -5413,7 +5473,6 @@ l2640h:
 	nop			;2644	00 	. 
 	nop			;2645	00 	. 
 	nop			;2646	00 	. 
-s2647h:
 	nop			;2647	00 	. 
 	nop			;2648	00 	. 
 	nop			;2649	00 	. 
@@ -5433,14 +5492,12 @@ s2647h:
 	nop			;2657	00 	. 
 	nop			;2658	00 	. 
 	nop			;2659	00 	. 
-s265ah:
 	nop			;265a	00 	. 
 	nop			;265b	00 	. 
 	nop			;265c	00 	. 
 	nop			;265d	00 	. 
 	nop			;265e	00 	. 
 	nop			;265f	00 	. 
-s2660h:
 	nop			;2660	00 	. 
 	nop			;2661	00 	. 
 	nop			;2662	00 	. 
@@ -5453,21 +5510,18 @@ s2660h:
 	nop			;2669	00 	. 
 	nop			;266a	00 	. 
 	nop			;266b	00 	. 
-s266ch:
 	nop			;266c	00 	. 
 	nop			;266d	00 	. 
 	nop			;266e	00 	. 
 	nop			;266f	00 	. 
 	nop			;2670	00 	. 
 	nop			;2671	00 	. 
-s2672h:
 	nop			;2672	00 	. 
 	nop			;2673	00 	. 
 	nop			;2674	00 	. 
 	nop			;2675	00 	. 
 	nop			;2676	00 	. 
 	nop			;2677	00 	. 
-l2678h:
 	nop			;2678	00 	. 
 	nop			;2679	00 	. 
 	nop			;267a	00 	. 
@@ -5500,9 +5554,9 @@ l268bh:
 l268dh:
 	push	h			;268d	e5 	. 
 	push	h			;268e	e5 	. 
-l268fh:
+NEWXPOS:
 	push	h			;268f	e5 	. 
-l2690h:
+NEWYPOS:
 	push	h			;2690	e5 	. 
 l2691h:
 	push	h			;2691	e5 	. 
@@ -5531,7 +5585,7 @@ l269fh:
 	push	h			;269f	e5 	. 
 l26a0h:
 	push	h			;26a0	e5 	. 
-l26a1h:
+LASTOUT:
 	push	h			;26a1	e5 	. 
 l26a2h:
 	push	h			;26a2	e5 	. 
@@ -5543,7 +5597,7 @@ l26a5h:
 	push	h			;26a5	e5 	. 
 l26a6h:
 	push	h			;26a6	e5 	. 
-l26a7h:
+INCHAR:
 	push	h			;26a7	e5 	. 
 l26a8h:
 	push	h			;26a8	e5 	. 
