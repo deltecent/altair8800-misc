@@ -1,0 +1,6 @@
+r tfexer.asm
+asm tfexer
+load tfexer.hex
+w tfexer.prn
+w tfexer.hex
+w tfexer.com b

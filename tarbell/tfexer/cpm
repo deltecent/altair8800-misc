@@ -1,0 +1,5 @@
+set cpu 8080
+set tarbell ena
+attach tarbell0 tfexer.dsk
+boot tarbell0
+
