@@ -121,7 +121,14 @@ nextByte	inx	h		; next byte
 		ora	a
 		jnz	chkMemTop
 
-		xchg			; hl to de
+		call	conStat		;
+		jz	dispProg	; no keypress
+
+		call	conIn		; get character
+		cpi	CTRLC		;
+		jz	abort		; Ctrl-C Abort?
+
+dispProg	xchg			; hl to de
 		call	dispWord
 		mvi	b,CR
 		call	conOut
@@ -142,6 +149,10 @@ testDone	xchg
 		call	dispMsg		;
 
 		jmp	getSize		; Start Over
+
+abort		lxi	h,mAbort
+		call	dispMsg
+		jmp	getSize
 
 
 ;**************************************************************************
@@ -502,7 +513,7 @@ lBuf	ds	lSize		;line buffer
 ;
 ;**************************************************************************
 
-mBanner		db	CR,LF,'Yet Another Memory Test (YAMT) Ver. 1.1 of 02/01/20',CR,LF,0
+mBanner		db	CR,LF,'Yet Another Memory Test (YAMT) Ver. 1.2 of 02/01/20',CR,LF,0
 mSize		db	CR,LF,'Memory Size (2-64)? ',0
 mBadSz		db	'Invalid Memory Size',0
 mTesting	db	'Testing Memory From 0x',0
@@ -512,6 +523,7 @@ mWrote		db	' Wrote:',0
 mRead		db	' Read:',0
 mStopped	db	'Stopped Test at 0x',0
 mDone		db	CR,LF,'Test Complete!',CR,LF,0
+mAbort		db	CR,LF,'Test Aborted!',CR,LF,0
 
 		ds	24		; stack space
 ourStk		equ	$
