@@ -36,8 +36,8 @@ getSize		lxi	h,mSize		; memory size?
 		jmp	getSize
 
 gotSize		call	dec2bin		; convert to binary
-		ora	a		; 0?
-		jz	badSize		;
+		cpi	2		; 0-1?
+		jc	badSize		;
 		cpi	maxSize+1	; valid memory size?
 		jc	setTop		; yes
 
@@ -47,6 +47,7 @@ badSize		lxi	h,mBadSz	; display invalid memory size
 
 setTop		rlc			; covert to K
 		rlc			;
+		ani	0fch		; strip low 2 bits
 		sta	memTop		; save
 
 		lxi	h,mTesting
@@ -70,13 +71,17 @@ setTop		rlc			; covert to K
 testMem		lxi	h,memBot	; start at the bottom
 
 testLoop	mov	a,m		; get byte
-		cma			; compliment
-		sta	memWr		; save byte wrote
+		sta	memOr		; save original byte
+		xra	a		; start at 0
+testLoc		sta	memWr		; save byte wrote
 		mov	m,a		; store byte
 		cmp	m		; compare
 		jnz	byteBad		; no match, found a bad byte
 
-byteGood	cma			; restore original byte
+		inr	a		;
+		jnz	testLoc		; test next value
+
+byteGood	lda	memOr		; restore original byte
 		mov	m,a		;
 		jmp	nextByte
 
@@ -112,7 +117,17 @@ nextByte	inx	h		; next byte
 		ora	a		;
 		jz	testDone	;
 
-		lda	memTop		; did we hit top
+		mov	a,l		; 0 byte boundary
+		ora	a
+		jnz	chkMemTop
+
+		xchg			; hl to de
+		call	dispWord
+		mvi	b,CR
+		call	conOut
+		xchg			; de to hl
+
+chkMemTop	lda	memTop		; did we hit top
 		cmp	h
 		jnz	testLoop	; loop
 
@@ -487,8 +502,8 @@ lBuf	ds	lSize		;line buffer
 ;
 ;**************************************************************************
 
-mBanner		db	CR,LF,'Yet Another Memory Test (YAMT) Ver. 1.0 of 12/28/19',CR,LF,0
-mSize		db	CR,LF,'Memory Size (1-64)? ',0
+mBanner		db	CR,LF,'Yet Another Memory Test (YAMT) Ver. 1.1 of 02/01/20',CR,LF,0
+mSize		db	CR,LF,'Memory Size (2-64)? ',0
 mBadSz		db	'Invalid Memory Size',0
 mTesting	db	'Testing Memory From 0x',0
 mTo		db	' to 0x',0
@@ -502,6 +517,7 @@ mDone		db	CR,LF,'Test Complete!',CR,LF,0
 ourStk		equ	$
 
 memSize		dw	0000H		; memory size
+memOr		db	0H		; byte original
 memWr		db	0H		; byte wrote
 memRd		db	0H		; byte read
 memBad		dw	0000H		; bad memory location
