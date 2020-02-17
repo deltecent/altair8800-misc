@@ -28,8 +28,8 @@ int baud = B460800;
 /*
 ** Flag Variables
 */
-int f_help = 0;
-int f_verbose = 0;    /* flag variables */
+int f_help = FALSE;
+int f_verbose = FALSE;
 
 struct option longopts[] = {
    { "port",	required_argument,	NULL,		'p' },
@@ -46,7 +46,7 @@ struct option longopts[] = {
 
 int main(int argc, char **argv)
 {
-	int running = 1;
+	int running = TRUE;
 	int bytes;
 	crblk_t	cmd;
 	int c;
@@ -77,11 +77,11 @@ int main(int argc, char **argv)
 				break;
 
 			case 'v':
-				f_verbose = 1;
+				f_verbose = TRUE;
 				break;
 
 			case 'h':
-				f_help = 1;
+				f_help = TRUE;
 				break;
 
 			case 0:
@@ -120,7 +120,7 @@ int main(int argc, char **argv)
 				break;
 
 			case 'Q':
-				running = 0;
+				running = FALSE;
 				break;
 
 			case 'V':
@@ -142,7 +142,6 @@ int main(int argc, char **argv)
 
 		if (bytes == sizeof(cmd)) {
 			processCmd(&cmd);
-			showStatus();
 		}
 		else {
 			displayCommand("----");
@@ -151,6 +150,7 @@ int main(int argc, char **argv)
 	}
 
 	closePort();
+	unmountAll();
 	displayReset();
 }
 
@@ -241,7 +241,6 @@ static int readCmd(crblk_t *cmd)
 	}
 
 	if (readTrack(drive, track, length, trackbuf) != length) {
-		displayError("DISK READ ERROR", errno);
 		return (-1);
 	}
 
