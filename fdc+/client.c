@@ -15,12 +15,17 @@
 #include "drive.h"
 #include "display.h"
 
+#define	BPS		137	// Bytes Per Sector
+#define SPT		32	// Sectors Per Track
+#define	TRACKS		77	// Tracks
+#define TRACK_LEN	BPS * SPT
+
 int cmdStat(int drive, int hlf, int track, void *buffer);
 int cmdRead(int drive, int track, int length, void *buffer);
 int cmdWrit(int drive, int track, int length, void *buffer);
 
 char *port;
-int baud = B230400;
+int baud = B460800;
 char buffer[MAX_TRACK_LEN];
 
 /*
@@ -70,14 +75,15 @@ int main(int argc, char **argv)
 		}
 	}
    
+	displayInit();
 
 	if(openPort(port, baud) == -1) {
+		displayReset();
 		perror("Unable to open serial port");
 
 		exit(errno);
 	}
 
-	displayInit();
 
 	for (track = 0; track < 79 && running; track++) {
 		switch(toupper(displayGetch())) {
@@ -94,13 +100,42 @@ int main(int argc, char **argv)
 		}
 
 		cmdStat(0, 1, track, buffer);
-		bytes = cmdRead(0, track, 26 * 128, buffer);
+		bytes = cmdRead(0, track, TRACK_LEN, buffer);
 		cmdStat(0, 0, track, buffer);
-		if (bytes == 26 * 128) {
-			cmdStat(1, 1, track, buffer);
-			cmdWrit(1, track, 26 * 128, buffer);
-			cmdStat(1, 0, track, buffer);
+		if (bytes == TRACK_LEN) {
+			cmdStat(3, 1, track, buffer);
+			cmdWrit(3, track, TRACK_LEN, buffer);
+			cmdStat(3, 0, track, buffer);
 		}
+		else {
+			displayError("INVALID TRACK LENGTH", 0);
+		}
+	}
+
+	for (track = 0; track < 79 && running; track++) {
+		switch(toupper(displayGetch())) {
+			case 'C':
+				displayError("", 0);
+				break;
+
+			case 'Q':
+				running = 0;
+				break;
+
+			default:
+				break;
+		}
+
+		cmdStat(0, 1, track, buffer);
+		cmdStat(0, 0, track, buffer);
+		cmdStat(1, 1, track, buffer);
+		cmdStat(1, 0, track, buffer);
+		cmdStat(2, 1, track, buffer);
+		cmdStat(2, 0, track, buffer);
+		cmdStat(3, 1, track, buffer);
+		cmdStat(3, 0, track, buffer);
+		cmdStat(4, 1, track, buffer);
+		cmdStat(4, 0, track, buffer);
 	}
 
 	displayReset();

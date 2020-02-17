@@ -10,36 +10,36 @@
 #define	MAX_LINE	LINES-1
 #define MAX_COL		COLS-1
 
-#define TITLE_LINE	MAX_LINE
+#define TITLE_LINE	0
 #define	TITLE_COL	0
 
-#define COPY_LINE	MAX_LINE
-#define	COPY_COL	MAX_COL-30
+#define COPY_LINE	0
+#define	COPY_COL	MAX_COL-sizeof(FDC_COPYRIGHT)+2
 
-#define	PORT_LINE	0
+#define	PORT_LINE	2
 #define PORT_COL	0
 #define PORT_TEXT	"PORT:"
 
-#define	BAUD_LINE	0
-#define BAUD_COL	PORT_COL+sizeof(PORT_TEXT)+20
+#define	BAUD_LINE	PORT_LINE
+#define BAUD_COL	PORT_COL+sizeof(PORT_TEXT)+21
 #define BAUD_TEXT	"BAUD RATE:"
 
-#define COMMAND_LINE	0
-#define COMMAND_COL	BAUD_COL+sizeof(BAUD_TEXT)+14
+#define COMMAND_LINE	PORT_LINE
+#define COMMAND_COL	BAUD_COL+sizeof(BAUD_TEXT)+10
 #define	COMMAND_TEXT	"COMMAND:"
 
 #define	BLOCK_LINE	COMMAND_LINE
 #define BLOCK_COL	COMMAND_COL + sizeof(COMMAND_TEXT) + 7
 
-#define	DRIVE_LINE	2
+#define	DRIVE_LINE	4
 #define	DRIVE_COL	0
-#define	DRIVE_TEXT	"Disk -                               Disk Enable -  Head Load -  Track --  RO -"
+#define	DRIVE_TEXT	"Disk -                                Disk Enable -  Head Load -  Track --  RO -"
 #define	DRIVE_NUM	5
 #define	DRIVE_FILE	8
-#define	DRIVE_ENA	49
-#define	DRIVE_HEAD	62
-#define	DRIVE_TRACK	71
-#define	DRIVE_RO	78
+#define	DRIVE_ENA	50
+#define	DRIVE_HEAD	63
+#define	DRIVE_TRACK	72
+#define	DRIVE_RO	79
 
 #define ERROR_LINE	DRIVE_LINE + 5
 #define ERROR_COL	0
@@ -47,6 +47,10 @@
 
 #define	BUFFER_LINE	MAX_LINE-12
 #define	BUFFER_COL	0
+
+#define	HELP_LINE	MAX_LINE
+#define	HELP_COL	0
+#define	HELP_TEXT	"[C] = Clear Error Message | [Q] = Quit Program | [V] = Verbose Toggle"
 
 void displayInit()
 {
@@ -65,9 +69,9 @@ void displayInit()
 	clear();
 
 	move(TITLE_LINE, TITLE_COL);
-	printw("FDC+ Serial Drive Server v1.0");
+	printw(FDC_NAME);
 	move(COPY_LINE, COPY_COL);
-	printw("(C) 2020 Deltec Enterprises LLC");
+	printw(FDC_COPYRIGHT);
 
 	move(PORT_LINE, PORT_COL);
 	printw(PORT_TEXT);
@@ -87,6 +91,9 @@ void displayInit()
 		move(DRIVE_LINE + d, DRIVE_NUM);
 		printw("%d", d);
 	}
+
+	move(HELP_LINE, HELP_COL);
+	printw(HELP_TEXT);
 
 	refresh();
 }
@@ -119,14 +126,19 @@ void displayCommand(char *command)
 {
 	move(COMMAND_LINE, COMMAND_COL+sizeof(COMMAND_TEXT));
 	printw("%-4.4s", command);
-	clrtoeol();
 	refresh();
 }
 
 void displayBlock(int drive, int track, int length)
 {
 	move(BLOCK_LINE, BLOCK_COL);
-	printw("D:%02d T:%02d L:%04d", drive, track, length);
+	if (drive != 0xff) {
+		printw("D:%02d T:%02d L:%04d", drive, track, length);
+	}
+	else {
+		printw("D:-- T:-- L:----");
+	}
+
 	refresh();
 }
 

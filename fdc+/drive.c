@@ -12,6 +12,10 @@
 #include "drive.h"
 #include "display.h"
 
+/*
+** 137 bytes per sector, 32 sectors per track, 77 tracks
+*/
+
 drvstat_t drvstat[MAX_DRIVES];
 uint8_t trackbuf[MAX_TRACK_LEN];
 
@@ -24,6 +28,8 @@ int mountDrive(int drive, char *filename)
 	strncpy(drvstat[drive].filename, filename, MAX_PATH);
 
 	if ((drvstat[drive].fd = open(filename, O_RDWR)) == -1) {
+		drvstat[drive].mounted = FALSE;
+		displayMount(drive, "--ERROR--");
 		displayError("MOUNT", errno);
 	}
 	else {
@@ -58,9 +64,11 @@ int writeProtect(int drive, int flag)
 		return -1;
 	}
 
-	drvstat[drive].readonly = (flag) ? TRUE : FALSE;
+	if (drvstat[drive].mounted) {
+		drvstat[drive].readonly = (flag) ? TRUE : FALSE;
 
-	displayRO(drive, flag);
+		displayRO(drive, flag);
+	}
 
 	return (0);
 }

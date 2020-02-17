@@ -15,14 +15,15 @@
 #include "drive.h"
 #include "display.h"
 
-int processCmd(crblk_t *cmd);
-int statCmd(crblk_t *cmd);
-int readCmd(crblk_t *cmd);
-int writCmd(crblk_t *cmd);
-int writResp(crblk_t *cmd, int resp);
+static void help();
+static int processCmd(crblk_t *cmd);
+static int statCmd(crblk_t *cmd);
+static int readCmd(crblk_t *cmd);
+static int writCmd(crblk_t *cmd);
+static int writResp(crblk_t *cmd, int resp);
 
-char *port;
-int baud = B230400;
+char *port = NULL;
+int baud = B460800;
 
 /*
 ** Flag Variables
@@ -88,15 +89,25 @@ int main(int argc, char **argv)
 				break;
 		}
 	}
-   
-	if(openPort(port, baud) == -1) {
-		perror("Unable to open serial port");
 
-		exit(errno);
+	if (f_help) {
+		displayReset();
+		help();
+		exit(1);
 	}
 
-	displayPort(port);
-	displayBaud(baud);
+	if (port == NULL) {
+		displayReset();
+		help();
+		printf("You must specify a serial port with '-p' option.\n\n");
+		exit(1);
+	}
+
+	if(openPort(port, baud) == -1) {
+		displayReset();
+		perror("Unable to open serial port");
+		exit(errno);
+	}
 
 	/*
 	** Command loop
@@ -110,6 +121,10 @@ int main(int argc, char **argv)
 
 			case 'Q':
 				running = 0;
+				break;
+
+			case 'V':
+				f_verbose = !f_verbose;
 				break;
 
 			default:
@@ -131,6 +146,7 @@ int main(int argc, char **argv)
 		}
 		else {
 			displayCommand("----");
+			displayBlock(0xff, 0, 0);
 		}
 	}
 
@@ -138,7 +154,23 @@ int main(int argc, char **argv)
 	displayReset();
 }
 
-int processCmd(crblk_t *cmd)
+static void help()
+{
+	printf("\n%s\n", FDC_NAME);
+	printf("%s\n\n", FDC_COPYRIGHT);
+	printf("Serial Disk Server compatible with the FDC+ Enhanced Floppy Disk\n");
+	printf("Controller for the Altair 8800 available at http://www.deramp.com\n\n");
+	printf("server [options] -p port\n\n");
+	printf("Options:\n");
+	printf("-[0-3] file\tMount disk image file to drive 0-3\n");
+	printf("\t\tThe FDC+ supports 330K 8 inch and 75K Minidisk images\n");
+	printf("-b baud\t\tSet serial port speed (default=460800)\n");
+	printf("-p port\t\tSerial port (required)\n");
+	printf("-r [0-3]\tMake drive 0-3 read only\n");
+	printf("-v\t\tVerbose display\n\n");
+}
+
+static int processCmd(crblk_t *cmd)
 {
 	if (!strncmp(cmd->cmd, "STAT", 4)) {
 		statCmd(cmd);
@@ -153,12 +185,13 @@ int processCmd(crblk_t *cmd)
 	return -1;
 }
 
-int statCmd(crblk_t *cmd)
+static int statCmd(crblk_t *cmd)
 {
 	int i;
 	uint16_t data = 0;
 
 	displayCommand("STAT");
+	displayBlock(0xff, 0, 0);
 
 	/*
 	** Save head load status and track for drive
@@ -186,7 +219,7 @@ int statCmd(crblk_t *cmd)
 	return (sendBuf(cmd, sizeof(crblk_t), 5));
 }
 
-int readCmd(crblk_t *cmd)
+static int readCmd(crblk_t *cmd)
 {
 	int length;
 	int drive;
@@ -219,7 +252,7 @@ int readCmd(crblk_t *cmd)
 	return (sendBuf(trackbuf, length, 5));
 }
 
-int writCmd(crblk_t *cmd)
+static int writCmd(crblk_t *cmd)
 {
 	int length;
 	int drive;
@@ -267,7 +300,7 @@ int writCmd(crblk_t *cmd)
 	return(0);
 }
 
-int writResp(crblk_t *cmd, int resp)
+static int writResp(crblk_t *cmd, int resp)
 {
 	cmd->lsb1 = LSB(resp);
 	cmd->msb1 = MSB(resp);

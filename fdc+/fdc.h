@@ -3,6 +3,9 @@
 
 #include <stdlib.h>
 
+#define	FDC_NAME	"FDC+ Serial Drive Server v1.0"
+#define	FDC_COPYRIGHT	"(c) 2020 Deltec Enterprises LLC"
+
 #ifndef TRUE
 #define	TRUE	1
 #endif

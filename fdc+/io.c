@@ -23,7 +23,9 @@ int openPort(char *device, int baud)
 		return (-1);
 	}
 
-	fd = open(device, O_RDWR | O_NOCTTY | O_NONBLOCK);
+	if ((fd = open(device, O_RDWR | O_NOCTTY | O_NONBLOCK)) == -1) {
+		return fd;
+	}
 
 	tcgetattr(fd, &oldtio); /* save current serial port settings */
 
@@ -35,6 +37,9 @@ int openPort(char *device, int baud)
 	cfsetispeed(&newtio, baud);
 
 	tcsetattr(fd, TCSANOW, &newtio);
+
+	displayPort(device);
+	displayBaud(baud);
 
 	return fd;
 }
