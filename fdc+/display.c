@@ -45,12 +45,17 @@
 #define ERROR_COL	0
 #define	ERROR_TEXT	"ERROR:"
 
+#define DEBUG_LINE	ERROR_LINE+1
+#define	DEBUG_COL	0
+
 #define	BUFFER_LINE	MAX_LINE-12
 #define	BUFFER_COL	0
 
 #define	HELP_LINE	MAX_LINE
 #define	HELP_COL	0
 #define	HELP_TEXT	"[C] = Clear Error Message | [Q] = Quit Program | [V] = Verbose Toggle"
+
+char dispbuf[128];
 
 void displayInit()
 {
@@ -161,6 +166,14 @@ void displayError(char *string, int err)
 
 	move(ERROR_LINE, ERROR_COL+sizeof(ERROR_TEXT));
 	printw("%-60.60s", error);
+	refresh();
+}
+
+void displayDebug(char *string)
+{
+	move(DEBUG_LINE, DEBUG_COL);
+	clrtoeol();
+	printw("%s", string);
 	refresh();
 }
 
