@@ -1,0 +1,6 @@
+*.dsk
+*.o
+fdc.pas
+cpm
+client
+server
