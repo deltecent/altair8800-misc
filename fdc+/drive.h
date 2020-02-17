@@ -18,10 +18,10 @@ extern drvstat_t drvstat[MAX_DRIVES];
 extern uint8_t trackbuf[MAX_TRACK_LEN];
 
 extern int mountDrive(int drive, char *filename);
-extern int unmountDriveo(int drive);
+extern int unmountDrive(int drive);
+extern void unmountAll();
 extern int writeProtect(int drive, int flag);
 extern int readTrack(int drive, int track, int length, void *buffer);
 extern int writeTrack(int drive, int track, int length, void *buffer);
-extern void showStatus();
 
 #endif

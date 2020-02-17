@@ -58,6 +58,15 @@ int unmountDrive(int drive)
 	return 0;
 }
 
+void unmountAll()
+{
+	int d;
+
+	for (d = 0; d < 3; d++) {
+		unmountDrive(d);
+	}
+}
+
 int writeProtect(int drive, int flag)
 {
 	if (drive >= MAX_DRIVES) {
@@ -75,7 +84,8 @@ int writeProtect(int drive, int flag)
 
 int readTrack(int drive, int track, int length, void *buffer)
 {
-	int offset;
+	off_t offset;
+	int bytes;
 
 	if (drive >= MAX_DRIVES) {
 		displayError("INVALID DRIVE", 0);
@@ -102,12 +112,17 @@ int readTrack(int drive, int track, int length, void *buffer)
 	/*
 	** Read track
 	*/
-	return (read(drvstat[drive].fd, buffer, length));
+	if ((bytes = read(drvstat[drive].fd, buffer, length)) != length) {
+		displayError("READ TRACK", errno);
+	}
+
+	return (bytes);
 }
 
 int writeTrack(int drive, int track, int length, void *buffer)
 {
-	int offset;
+	off_t offset;
+	int bytes;
 
 	if (drive >= MAX_DRIVES) {
 		displayError("INVALID DRIVE", 0);
@@ -119,7 +134,7 @@ int writeTrack(int drive, int track, int length, void *buffer)
 		return (-1);
 	}
 
-	if (drvstat[drive].mounted && drvstat[drive].fd == -1) {
+	if (!drvstat[drive].mounted || drvstat[drive].fd == -1) {
 		displayError("DISK NOT MOUNTED", 0);
 		return (-1);
 	}
@@ -139,19 +154,10 @@ int writeTrack(int drive, int track, int length, void *buffer)
 	/*
 	** Write track
 	*/
-	return (write(drvstat[drive].fd, buffer, length));
-}
-
-void showStatus()
-{
-	int drive;
-
-	for (drive = 0; drive < MAX_DRIVES; drive++) {
-//		printf("Drive %02d: ", drive);
-//		printf("mounted=%d ", drvstat[drive].mounted);
-//		printf("track=%02d ", drvstat[drive].track);
-//		printf("readonly=%d ", drvstat[drive].readonly);
-//		printf("file=%s\n", drvstat[drive].filename);
+	if ((bytes = write(drvstat[drive].fd, buffer, length)) != length) {
+		displayError("WRITE TRACK", errno);
 	}
+
+	return (bytes);
 }
 
