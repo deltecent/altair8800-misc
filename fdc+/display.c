@@ -137,11 +137,23 @@ void displayCommand(char *command)
 void displayBlock(int drive, int track, int length)
 {
 	move(BLOCK_LINE, BLOCK_COL);
-	if (drive != 0xff) {
-		printw("D:%02d T:%02d L:%04d", drive, track, length);
+	if (drive >= 0 && drive <= 0xff) {
+		printw("D:%02X ", drive);
 	}
 	else {
-		printw("D:-- T:-- L:----");
+		printw("D:-- ");
+	}
+	if (track != -1) {
+		printw("T:%02d ", track);
+	}
+	else {
+		printw("T:-- ");
+	}
+	if (length != -1) {
+		printw("L:%04d", length);
+	}
+	else {
+		printw("L:----");
 	}
 
 	refresh();
@@ -176,6 +188,8 @@ void displayDebug(char *string)
 	printw("%s", string);
 	refresh();
 }
+
+// need to make a displayEnabled
 
 void displayHead(int drive, int head)
 {
@@ -237,7 +251,7 @@ void displayRO(int drive, int wp)
 	refresh();
 }
 
-void displayBuffer(char *prefix, void *buffer, int length)
+void displayBuffer(char *string, void *buffer, int length)
 {
 	int i;
 	int maxlen;
@@ -277,6 +291,10 @@ void displayBuffer(char *prefix, void *buffer, int length)
 
 		buffer++;
 	}
+
+	move(BUFFER_LINE+11, BUFFER_COL);
+	clrtoeol();
+	printw(string);
 
 	refresh();
 }
