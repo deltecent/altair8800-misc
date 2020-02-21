@@ -2,7 +2,9 @@
 #define	_DISK_H
 
 #define	MAX_DRIVES	16
+#define	MAX_TRACKS	77
 #define	MAX_TRACK_LEN	(137*32)
+#define MAX_DISK_SIZE	MAX_TRACK_LEN * MAX_TRACKS
 #define	MAX_PATH	128
 
 typedef struct DRVSTAT {
