@@ -18,7 +18,7 @@ extern void displayHead(int drive, int head);
 extern void displayTrack(int drive, int track);
 extern void displayMount(int drive, char *path);
 extern void displayRO(int drive, int wp);
-extern void displayBuffer(char *prefix, void *buffer, int length);
+extern void displayBuffer(char *string, void *buffer, int length);
 
 #endif
 
