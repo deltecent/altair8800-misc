@@ -38,6 +38,8 @@ int openPort(char *device, int baud)
 
 	tcsetattr(fd, TCSANOW, &newtio);
 
+	tcflush(fd, TCIFLUSH);
+
 	displayPort(device);
 	displayBaud(baud);
 
