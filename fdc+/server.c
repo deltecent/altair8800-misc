@@ -24,12 +24,14 @@ static int writResp(crblk_t *cmd, int resp);
 
 char *port = NULL;
 int baud = B460800;
+char dbuf[128];
 
 /*
 ** Flag Variables
 */
 int f_help = FALSE;
 int f_verbose = FALSE;
+int f_debug = FALSE;
 
 struct option longopts[] = {
    { "port",	required_argument,	NULL,		'p' },
@@ -39,8 +41,9 @@ struct option longopts[] = {
    { "load2",	required_argument,	NULL,		'2' },
    { "load3",	required_argument,	NULL,		'3' },
    { "ro",	required_argument,	NULL,		'r' },
-   { "help",	no_argument,     	&f_help,	1 },
-   { "verbose",	no_argument,		&f_verbose,	1 },
+   { "help",	no_argument,     	&f_help,	TRUE },
+   { "debug",	no_argument,		&f_debug,	TRUE },
+   { "verbose",	no_argument,		&f_verbose,	TRUE },
    { 0, 0, 0, 0 }
 };
 
@@ -74,6 +77,10 @@ int main(int argc, char **argv)
 
 			case 'b':
 				baud = atoi(optarg);
+				break;
+
+			case 'd':
+				f_debug = TRUE;
 				break;
 
 			case 'v':
@@ -145,7 +152,7 @@ int main(int argc, char **argv)
 		}
 		else {
 			displayCommand("----");
-			displayBlock(0xff, 0, 0);
+			displayBlock(-1, -1, -1);
 		}
 	}
 
@@ -189,24 +196,35 @@ static int statCmd(crblk_t *cmd)
 {
 	int i;
 	uint16_t data = 0;
+	int drive;
 
 	displayCommand("STAT");
-	displayBlock(0xff, 0, 0);
+
+	drive = cmd->lsb1;
 
 	/*
 	** Save head load status and track for drive
 	*/
-	if (cmd->lsb1 < MAX_DRIVES) {
-		drvstat[cmd->lsb1].hdld = cmd->msb1;
-		drvstat[cmd->lsb1].track = WORD(cmd->lsb2, cmd->msb2);
+	if (drive < MAX_DRIVES) {
+		drvstat[drive].hdld = cmd->msb1;
+		drvstat[drive].track = WORD(cmd->lsb2, cmd->msb2);
 
-		displayHead(cmd->lsb1, drvstat[cmd->lsb1].hdld);
-		displayTrack(cmd->lsb1, drvstat[cmd->lsb1].track);
+		displayHead(drive, drvstat[drive].hdld);
+		displayTrack(drive, drvstat[drive].track);
+
+	}
+	else {
+		for (i=0; i < MAX_DRIVES; i++) {
+			drvstat[i].hdld = FALSE;
+
+			displayHead(drive, drvstat[i].hdld);
+		}
+
+		displayBlock(drive, -1, -1);
 	}
 
 	for (i=0; i < MAX_DRIVES; i++) {
-		data <<= 1;
-		data |= drvstat[i].mounted;
+		data |= (drvstat[i].mounted << i);
 	}
 
 	cmd->lsb2 = LSB(data);
@@ -231,6 +249,11 @@ static int readCmd(crblk_t *cmd)
 	drive = cmd->msb1 >> 4;
 	track = WORD(cmd->lsb1, cmd->msb1) & 0x0fff;
 	length = WORD(cmd->lsb2, cmd->msb2);
+
+	if (f_debug) {
+		sprintf(dbuf, "READ TRACK D:%02d T:%02d L:%04d", drive, track, length);
+		displayDebug(dbuf);
+	}
 
 	if (f_verbose) {
 		displayBlock(drive, track, length);
